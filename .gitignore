@@ -1,0 +1,6 @@
+./tests/*
+*.exe
+*.o
+*.s
+.vscode
+.vs
