@@ -8,7 +8,7 @@ static const char* GenExpressionAsm(ASTNode* node){
 	if(node->op != A_LitInt)	FatalM("Expected Return Statement in function!", Line);
 	const char* format = "	mov		$%d,	%%rax\n";
 	int value = node->value.intVal;
-	int charCount = strlen(format) + (int)(log10(value) + 1)/* <- # of digits in value */;
+	int charCount = strlen(format) + (int)(log10(value) + 1)/* <- # of digits in value */ + 1;
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, value);
 	return str;
@@ -42,7 +42,7 @@ static const char* GenFunctionAsm(ASTNode* node){
 	if(node->op != A_Function)		FatalM("Expected function at top level statement!", Line);
 	if(node->value.strVal == NULL)	FatalM("Expected a function identifier, got NULL instead.", Line);
 	const char* format = 
-		"	.globl %s:\n"			// Identifier
+		"	.globl %s\n"			// Identifier
 		"%s:\n"						// Identifier
 		"	push	%%rbp\n"
 		"	mov		%%rsp, %%rbp\n"
