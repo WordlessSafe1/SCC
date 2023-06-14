@@ -2,7 +2,10 @@
 <program>				::= <function>
 <function>				::= "int" "main" "(" ")" "{" <return_statement> "}"
 <return_statement>		::= "return" <int>
-<expression>			::= <unary_op> <expression> | <int>
+<expression>			::= <additive_expr>
+<additive_expr>			::= <term> { ( '+' | '-' ) <term> }
+<term>					::= <factor> { ( '*' | '/' | '%' ) <factor> }
+<factor>				::= <unary_op> <factor> | <int>
 
 <unary_op>				::= '~' | '!' | '-'
 

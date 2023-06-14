@@ -19,6 +19,10 @@ static Token* Tokenize(const char* str){
 	else if(streq(str, "-"))		token->type = T_Minus;
 	else if(streq(str, "!"))		token->type = T_Bang;
 	else if(streq(str, "~"))		token->type = T_Tilde;
+	else if(streq(str, "+"))		token->type = T_Plus;
+	else if(streq(str, "*"))		token->type = T_Asterisk;
+	else if(streq(str, "/"))		token->type = T_Divide;
+	else if(streq(str, "%"))		token->type = T_Percent;
 	else if(isdigit(str[0])){
 		token->type = T_LitInt;
 		token->value.intVal = atoi(str);
@@ -30,7 +34,7 @@ static Token* Tokenize(const char* str){
 	return token;
 }
 
-static char* ShiftToken(){
+char* ShiftToken(){
 	char* token = malloc(32 * sizeof(char));
 	int len = 32;
 	int i = 0;
@@ -38,6 +42,8 @@ static char* ShiftToken(){
 		if(i == len)
 			token = realloc(token, len += 32);
 		char c = fgetc(fptr);
+		// For some reason, fgetc() keeps pulling a phantom null byte. This counteracts it.
+		while(c == '\0')	c = fgetc(fptr);
 		if(c == EOF)
 			break;
 		if(c == '\n' || c == '\t' || c == ' '){
@@ -46,7 +52,7 @@ static char* ShiftToken(){
 			if(i)	break;
 			else	continue;
 		}
-		if(strchr("(){};-~!", c)){
+		if(strchr("(){};-~!+*/%%", c)){
 			if(i){
 				ungetc(c, fptr);
 				break;

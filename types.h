@@ -17,6 +17,10 @@ enum eTokenCategory {
 	T_Minus,
 	T_Bang,
 	T_Tilde,
+	T_Plus,
+	T_Asterisk,
+	T_Divide,
+	T_Percent,
 };
 typedef enum eTokenCategory TokenType;
 
@@ -28,6 +32,11 @@ enum eNodeType {
 	A_Negate,
 	A_LogicalNot,
 	A_BitwiseComplement,
+	A_Multiply,
+	A_Divide,
+	A_Modulo,
+	A_Add,
+	A_Subtract,
 };
 typedef enum eNodeType NodeType;
 
@@ -41,7 +50,7 @@ struct token {
 typedef struct token Token;
 
 struct ast_node {
-	int op;
+	NodeType op;
 	struct ast_node *lhs;
 	struct ast_node *rhs;
 	union {
