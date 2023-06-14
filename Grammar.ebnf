@@ -1,7 +1,10 @@
 # <comment>				::= "//" { <letter> | <digit> }
 <program>				::= <function>
-<function>				::= "int" "main" "(" ")" "{" <return-statement> "}"
-<return-statement>		::= "return" <int>
+<function>				::= "int" "main" "(" ")" "{" <return_statement> "}"
+<return_statement>		::= "return" <int>
+<expression>			::= <unary_op> <expression> | <int>
+
+<unary_op>				::= '~' | '!' | '-'
 
 <id>					::= <letter> { <letter> | <digit> }
 <character-literal>		::= "'" ( <symbol> | <letter> | <digit> ) "'"

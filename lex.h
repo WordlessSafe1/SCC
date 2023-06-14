@@ -16,6 +16,9 @@ static Token* Tokenize(const char* str){
 	else if(streq(str, "return"))	token->type = T_Return;
 	else if(streq(str, ";"))		token->type = T_Semicolon;
 	else if(streq(str, "int"))		token->type = T_Type;
+	else if(streq(str, "-"))		token->type = T_Minus;
+	else if(streq(str, "!"))		token->type = T_Bang;
+	else if(streq(str, "~"))		token->type = T_Tilde;
 	else if(isdigit(str[0])){
 		token->type = T_LitInt;
 		token->value.intVal = atoi(str);
@@ -43,7 +46,7 @@ static char* ShiftToken(){
 			if(i)	break;
 			else	continue;
 		}
-		if(c == '(' || c == ')' || c == '{' || c == '}' || c == ';'){
+		if(strchr("(){};-~!", c)){
 			if(i){
 				ungetc(c, fptr);
 				break;

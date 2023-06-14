@@ -3,15 +3,52 @@
 #include "defs.h"
 #include "types.h"
 
-static const char* GenExpressionAsm(ASTNode* node){
+static const char* GenLitInt(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
-	if(node->op != A_LitInt)	FatalM("Expected Return Statement in function!", Line);
+	if(node->op != A_LitInt)	FatalM("Expected literal int in expression!", Line);
 	const char* format = "	mov		$%d,	%%rax\n";
 	int value = node->value.intVal;
-	int charCount = strlen(format) + (int)(log10(value) + 1)/* <- # of digits in value */ + 1;
+	int charCount = strlen(format) + (value ? (int)(log10(value) + 1) : 1 )/* <- # of digits in value */ + 1;
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, value);
 	return str;
+}
+
+static const char* GenExpressionAsm(ASTNode* node){
+	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
+	if(node->op == A_LitInt)	return GenLitInt(node);
+	if(node->op == A_Negate){
+		if(node->lhs == NULL)	FatalM("Expected expression after unary negation operator!", Line);
+		const char* format = "%s	neg		%rax\n";
+		const char* innerAsm = GenExpressionAsm(node->lhs);
+		int charCount = strlen(format) + strlen(innerAsm) + 1;
+		char* str = malloc(charCount * sizeof(char));
+		snprintf(str, charCount, format, innerAsm);
+		return str;
+	}
+	if(node->op == A_BitwiseComplement){
+		if(node->lhs == NULL)	FatalM("Expected expression after unary negation operator!", Line);
+		const char* format = "%s	not		%rax\n";
+		const char* innerAsm = GenExpressionAsm(node->lhs);
+		int charCount = strlen(format) + strlen(innerAsm) + 1;
+		char* str = malloc(charCount * sizeof(char));
+		snprintf(str, charCount, format, innerAsm);
+		return str;
+	}
+	if(node->op == A_LogicalNot){
+		if(node->lhs == NULL)	FatalM("Expected expression after unary negation operator!", Line);
+		const char* instr =
+			"	cmp		$0,		%%rax\n"
+			"	mov		$0,		%%rax\n"
+			"	sete	%%al\n"
+		;
+		const char* innerAsm = GenExpressionAsm(node->lhs);
+		int charCount = strlen(instr) + strlen(innerAsm) + 1;
+		char* str = malloc(charCount * sizeof(char));
+		snprintf(str, charCount, "%s%s", innerAsm, instr);
+		return str;
+	}
+	FatalM("Invalid expression!", Line);
 }
 
 static const char* GenStatementAsm(ASTNode* node){

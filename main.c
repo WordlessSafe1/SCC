@@ -34,7 +34,7 @@ char* TokenTypeNames[] = {
 int main(int argc, char** argv){
 	if(argc < 2)	FatalM("No input files specified!", NOLINE);
 	const char* outputTarget = "a.s"; 
-	const char* inputTarget; 
+	const char* inputTarget = NULL; 
 	for(int i = 1; i < argc; i++){
 		if(streq(argv[i], "-o")){
 			if(i+1 >= argc)	FatalM("Trailing argument '-o'!", NOLINE);
@@ -43,20 +43,22 @@ int main(int argc, char** argv){
 		else
 			inputTarget = argv[i];
 	}
+	if (inputTarget == NULL)	FatalM("No input file specified!", NOLINE);
 	fptr = fopen(inputTarget, "r");
-	ASTNode* a = ParseFunction();
+	ASTNode* ast = ParseFunction();
 	if(GetToken() != NULL)	FatalM("Expected EOF!", Line);
 	fclose(fptr);
 	Line = NOLINE;
+	const char* Asm = GenerateAsm(ast);
 	fptr = fopen(outputTarget, "w");
-	fprintf(fptr, GenerateAsm(a));
+	fprintf(fptr, Asm);
 	fclose(fptr);
 	return 0;
 }
 
 void FatalM(const char* msg, int line){
-	if(line == NOLINE)	printf("Fatal error encountered:\n\t%s", msg);
-	else				printf("Fatal error encountered on ln %d:\n\t%s", line, msg);
+	if(line == NOLINE)	printf("Fatal error encountered:\n\t%s\n", msg);
+	else				printf("Fatal error encountered on ln %d:\n\t%s\n", line, msg);
 	exit(-1);
 }
 

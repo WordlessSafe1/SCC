@@ -29,8 +29,13 @@ ASTNode* ParseStatement(){
 
 ASTNode* ParseExpression(){
 	Token* tok = GetToken();
-	if(tok->type != T_LitInt)				FatalM("Invalid expression; Expected integer literal.", Line);
-	return MakeASTLeaf(A_LitInt, tok->value.intVal, NULL);
+	switch(tok->type){
+		case T_LitInt:	return MakeASTLeaf(A_LitInt, tok->value.intVal, NULL);
+		case T_Minus:	return MakeASTUnary(A_Negate,				ParseExpression(),	0,	NULL);
+		case T_Bang:	return MakeASTUnary(A_LogicalNot,			ParseExpression(),	0,	NULL);
+		case T_Tilde:	return MakeASTUnary(A_BitwiseComplement,	ParseExpression(),	0,	NULL);
+		default:		FatalM("Invalid expression!", Line);
+	}
 }
 
 

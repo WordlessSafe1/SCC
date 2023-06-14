@@ -14,6 +14,9 @@ enum eTokenCategory {
 	T_Return,
 	T_Semicolon,
 	T_LitInt,
+	T_Minus,
+	T_Bang,
+	T_Tilde,
 };
 typedef enum eTokenCategory TokenType;
 
@@ -22,6 +25,9 @@ enum eNodeType {
 	A_Function,
 	A_Return,
 	A_LitInt,
+	A_Negate,
+	A_LogicalNot,
+	A_BitwiseComplement,
 };
 typedef enum eNodeType NodeType;
 
