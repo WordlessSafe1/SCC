@@ -21,34 +21,40 @@ ASTNode* ParseFactor(){
 ASTNode* ParseTerm(){
 	ASTNode* lhs = ParseFactor();
 	Token* tok = PeekToken();
-	switch (tok->type){
-		case T_Asterisk:
-			GetToken();
-			return MakeASTNode(A_Multiply,	lhs,	ParseFactor(),	0,	NULL);
-		case T_Divide:
-			GetToken();
-			return MakeASTNode(A_Divide,	lhs,	ParseFactor(),	0,	NULL);
-		case T_Percent:
-			GetToken();
-			return MakeASTNode(A_Modulo,	lhs,	ParseFactor(),	0,	NULL);
-		default:
-			return lhs;
+	while(tok->type == T_Asterisk || tok->type == T_Divide || tok->type == T_Percent){
+		GetToken();
+		switch (tok->type){
+			case T_Asterisk:
+				lhs = MakeASTNode(A_Multiply,	lhs,	ParseFactor(),	0,	NULL);
+				break;
+			case T_Divide:
+				lhs = MakeASTNode(A_Divide,	lhs,	ParseFactor(),	0,	NULL);
+				break;
+			case T_Percent:
+				lhs = MakeASTNode(A_Modulo,	lhs,	ParseFactor(),	0,	NULL);
+				break;
+		}
+		tok = PeekToken();
 	}
+	return lhs;
 }
 
 ASTNode* ParseAdditiveExpression(){
 	ASTNode* lhs = ParseTerm();
 	Token* tok = PeekToken();
-	switch (tok->type){
-		case T_Plus:
-			GetToken();
-			return MakeASTNode(A_Add,		lhs,	ParseTerm(),	0,	NULL);
-		case T_Minus:
-			GetToken();
-			return MakeASTNode(A_Subtract,	lhs,	ParseTerm(),	0,	NULL);
-		default:
-			return lhs;
+	while(tok->type == T_Plus || tok->type == T_Minus){
+		GetToken();
+		switch (tok->type){
+			case T_Plus:
+				lhs = MakeASTNode(A_Add,		lhs,	ParseTerm(),	0,	NULL);
+				break;
+			case T_Minus:
+				lhs = MakeASTNode(A_Subtract,	lhs,	ParseTerm(),	0,	NULL);
+				break;
+		}
+		tok = PeekToken();
 	}
+	return lhs;
 }
 
 ASTNode* ParseExpression(){
