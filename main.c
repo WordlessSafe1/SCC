@@ -1,11 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
+#include <math.h>
 
 #include "defs.h"
 #include "types.h"
 #include "lex.h"
 #include "parse.h"
+#include "gen.h"
+
 #ifdef extern_main
 	#undef extern_main
 #endif
@@ -34,6 +38,9 @@ int main(int argc, char** argv){
 	if(GetToken() != NULL)	FatalM("Expected EOF!", Line);
 	puts("EOF");
 	fclose(fptr);
+	Line = NOLINE;
+	printf(GenerateAsm(a));
+	return 0;
 }
 
 void FatalM(const char* msg, int line){

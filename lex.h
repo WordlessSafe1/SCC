@@ -6,7 +6,7 @@
 
 bool streq(const char*, const char*);
 
-Token* Tokenize(const char* str){
+static Token* Tokenize(const char* str){
 	Token* token = malloc(sizeof(Token));
 	if(streq(str, "\0"))			token->type = T_Undefined;
 	else if(streq(str, "("))		token->type = T_OpenParen;
@@ -27,7 +27,7 @@ Token* Tokenize(const char* str){
 	return token;
 }
 
-char* ShiftToken(){
+static char* ShiftToken(){
 	char* token = malloc(32 * sizeof(char));
 	int len = 32;
 	int i = 0;
@@ -58,7 +58,7 @@ char* ShiftToken(){
 	return i ? token : NULL;
 }
 
-void UnshiftToken(const char* token){
+static void UnshiftToken(const char* token){
 	int i = 0;
 	while(token[i++]);
 	while(i--)

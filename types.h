@@ -40,26 +40,33 @@ struct ast_node {
 	struct ast_node *rhs;
 	union {
 		int intVal;
+		char* strVal;
 	} value;
 };
 typedef struct ast_node ASTNode;
 
-ASTNode* MakeASTNode(int op, ASTNode* lhs, ASTNode* rhs, int intValue){
+ASTNode* MakeASTNode(int op, ASTNode* lhs, ASTNode* rhs, int intValue, const char* strValue){
 	ASTNode* node = malloc(sizeof(ASTNode));
 	if(node == NULL)
 		FatalM("Failed to malloc in MakeASTNode()", Line);
 	node->op = op;
 	node->lhs = lhs;
 	node->rhs = rhs;
-	node->value.intVal = intValue;
+	if(strValue != NULL){
+		node->value.strVal = malloc((1 + strlen(strValue)) * sizeof(char));
+		strcpy(node->value.strVal, strValue);
+	}
+	else
+		node->value.intVal = intValue;
+	return node;
 }
 
-ASTNode* MakeASTLeaf(int op, int intValue){
-	return MakeASTNode(op, NULL, NULL, intValue);
+ASTNode* MakeASTLeaf(int op, int intValue, const char* strValue){
+	return MakeASTNode(op, NULL, NULL, intValue, strValue);
 }
 
-ASTNode* MakeASTUnary(int op, ASTNode* lhs, int intValue){
-	return MakeASTNode(op, lhs, NULL, intValue);
+ASTNode* MakeASTUnary(int op, ASTNode* lhs, int intValue, const char* strValue){
+	return MakeASTNode(op, lhs, NULL, intValue, strValue);
 }
 
 #endif
