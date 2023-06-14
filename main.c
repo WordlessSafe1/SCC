@@ -33,13 +33,24 @@ char* TokenTypeNames[] = {
 
 int main(int argc, char** argv){
 	if(argc < 2)	FatalM("No input files specified!", NOLINE);
-	fptr = fopen(argv[1], "r");
+	const char* outputTarget = "a.s"; 
+	const char* inputTarget; 
+	for(int i = 1; i < argc; i++){
+		if(streq(argv[i], "-o")){
+			if(i+1 >= argc)	FatalM("Trailing argument '-o'!", NOLINE);
+			else			outputTarget = argv[++i];
+		}
+		else
+			inputTarget = argv[i];
+	}
+	fptr = fopen(inputTarget, "r");
 	ASTNode* a = ParseFunction();
 	if(GetToken() != NULL)	FatalM("Expected EOF!", Line);
-	puts("EOF");
 	fclose(fptr);
 	Line = NOLINE;
-	printf(GenerateAsm(a));
+	fptr = fopen(outputTarget, "w");
+	fprintf(fptr, GenerateAsm(a));
+	fclose(fptr);
 	return 0;
 }
 
