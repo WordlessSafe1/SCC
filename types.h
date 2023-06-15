@@ -79,12 +79,36 @@ struct ast_node {
 	NodeType op;
 	struct ast_node *lhs;
 	struct ast_node *rhs;
+	struct ast_node_list *list;
 	union {
 		int intVal;
 		char* strVal;
 	} value;
 };
 typedef struct ast_node ASTNode;
+
+struct ast_node_list {
+	ASTNode** nodes;
+	int count;
+	int size;
+};
+typedef struct ast_node_list ASTNodeList;
+
+ASTNodeList* MakeASTNodeList(){
+	ASTNodeList* list = malloc(sizeof(ASTNodeList));
+	list->size = 10;
+	list->nodes = malloc(list->size * sizeof(ASTNode*));
+	list->count = 0;
+}
+
+ASTNodeList* AddNodeToASTList(ASTNodeList* list, ASTNode* node){
+	while(list->count >= list->size){
+		list->size += 10;
+		list->nodes = ResizeBlock(list->nodes, list->size);
+	}
+	list->nodes[list->count++] = node;
+	return list;
+}
 
 ASTNode* MakeASTNode(int op, ASTNode* lhs, ASTNode* rhs, int intValue, const char* strValue){
 	ASTNode* node = malloc(sizeof(ASTNode));
@@ -108,6 +132,11 @@ ASTNode* MakeASTLeaf(int op, int intValue, const char* strValue){
 
 ASTNode* MakeASTUnary(int op, ASTNode* lhs, int intValue, const char* strValue){
 	return MakeASTNode(op, lhs, NULL, intValue, strValue);
+}
+
+ASTNode* MakeASTList(int op, ASTNodeList* list, int intValue, const char* strValue){
+	ASTNode* node = MakeASTLeaf(op, intValue, strValue);
+	node->list = list;
 }
 
 #endif

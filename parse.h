@@ -9,12 +9,14 @@ ASTNode* ParseExpression();
 
 ASTNode* ParseFactor(){
 	Token* tok = GetToken();
+	ASTNode* ret;
 	switch(tok->type){
-		case T_LitInt:	return MakeASTLeaf(A_LitInt, tok->value.intVal, NULL);
-		case T_Minus:	return MakeASTUnary(A_Negate,				ParseFactor(),	0,	NULL);
-		case T_Bang:	return MakeASTUnary(A_LogicalNot,			ParseFactor(),	0,	NULL);
-		case T_Tilde:	return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	0,	NULL);
-		default:		FatalM("Invalid expression!", Line);
+		case T_LitInt:		return MakeASTLeaf(A_LitInt, tok->value.intVal, NULL);
+		case T_Minus:		return MakeASTUnary(A_Negate,				ParseFactor(),	0,	NULL);
+		case T_Bang:		return MakeASTUnary(A_LogicalNot,			ParseFactor(),	0,	NULL);
+		case T_Tilde:		return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	0,	NULL);
+		case T_Semicolon:	ungetc(';', fptr); return MakeASTLeaf(A_Undefined, 0, NULL);
+		default:			FatalM("Invalid expression!", Line);
 	}
 }
 
@@ -160,11 +162,18 @@ ASTNode* ParseExpression(){
 	return ParseLogicalOrExpression();
 }
 
-ASTNode* ParseStatement(){
-	if(GetToken()->type != T_Return)		FatalM("Invalid statement; Expected typename.", Line);
+ASTNode* ParseReturnStatement(){
+	if(GetToken()->type != T_Return)		FatalM("Invalid statement; Expected return.", Line);
 	ASTNode* expr = ParseExpression();
 	if(GetToken()->type != T_Semicolon)		FatalM("Invalid statement; Expected semicolon.", Line);
 	return MakeASTUnary(A_Return, expr, 0, NULL);
+}
+
+ASTNode* ParseStatement(){
+	if(PeekToken()->type == T_Return)		return ParseReturnStatement();
+	ASTNode* expr = ParseExpression();
+	if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon!", Line);
+	return expr;
 }
 
 ASTNode* ParseFunction(){
@@ -175,9 +184,16 @@ ASTNode* ParseFunction(){
 	if(GetToken()->type != T_OpenParen)		FatalM("Invalid function declaration; Expected open parenthesis '('.", Line);
 	if(GetToken()->type != T_CloseParen)	FatalM("Invalid function declaration; Expected close parenthesis ')'.", Line);
 	if(GetToken()->type != T_OpenBrace)		FatalM("Invalid function declaration; Expected open brace '{'.", Line);
-	ASTNode* stmt = ParseStatement();
+	int idLen = strlen(identifier->value.strVal) + 1;
+	char* idStr = malloc(idLen * sizeof(char));
+	strncpy(idStr,identifier->value.strVal, idLen);
+	ASTNodeList* list = MakeASTNodeList();
+	while(PeekToken()->type != T_CloseBrace)
+		AddNodeToASTList(list, ParseStatement());
+	// ASTNode* stmt = ParseStatement();
 	if(GetToken()->type != T_CloseBrace)	FatalM("Invalid function declaration; Expected close brace '}'.", Line);
-	return MakeASTUnary(A_Function, stmt, 0, identifier->value.strVal);
+	return MakeASTList(A_Function, list, 0, idStr);
+	// return MakeASTUnary(A_Function, stmt, 0, identifier->value.strVal);
 }
 
 #endif

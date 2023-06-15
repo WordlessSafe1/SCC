@@ -52,7 +52,7 @@ char* ShiftToken(){
 	int i = 0;
 	while(true){
 		if(i == len)
-			token = realloc(token, len += 32);
+			token = ResizeBlock(token, len += 32);
 		char c = fgetc(fptr);
 		// For some reason, fgetc() keeps pulling a phantom null byte. This counteracts it.
 		while(c == '\0')	c = fgetc(fptr);
@@ -94,14 +94,15 @@ char* ShiftToken(){
 		}
 		token[i++] = c;
 	}
-	token = realloc(token, i + 1);
+	token = ResizeBlock(token, i + 1);
 	token[i] = '\0';
 	return i ? token : NULL;
 }
 
 static void UnshiftToken(const char* token){
-	int i = 0;
-	while(token[i++]);
+	int i = strlen(token);
+	ungetc(' ', fptr);
+	//while(token[i++]);
 	while(i--)
 		ungetc(token[i], fptr);
 }

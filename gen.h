@@ -6,6 +6,7 @@
 static int labelPref = 9;
 
 static const char* GenExpressionAsm(ASTNode* node);
+const char* GenerateAsmFromList(ASTNodeList* list);
 
 static const char* GenLitInt(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
@@ -359,11 +360,12 @@ static const char* GenExpressionAsm(ASTNode* node){
 		case A_BitwiseOr:			return GenBitwiseOr(node);
 		case A_LogicalAnd:			return GenLogicalAnd(node);
 		case A_LogicalOr:			return GenLogicalOr(node);
+		case A_Undefined:			return "";
 		default:					FatalM("Invalid expression in generation stage!", Line);
 	}
 }
 
-static const char* GenStatementAsm(ASTNode* node){
+static const char* GenReturnStatementAsm(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op != A_Return)	FatalM("Expected Return Statement in function!", Line);
 	if(node->lhs == NULL)
@@ -386,6 +388,12 @@ static const char* GenStatementAsm(ASTNode* node){
 	return str;
 }
 
+static const char* GenStatementAsm(ASTNode* node){
+	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
+	if(node->op == A_Return)	return GenReturnStatementAsm(node);
+	return GenExpressionAsm(node);
+}
+
 static const char* GenFunctionAsm(ASTNode* node){
 	if(node == NULL)				FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op != A_Function)		FatalM("Expected function at top level statement!", Line);
@@ -397,7 +405,10 @@ static const char* GenFunctionAsm(ASTNode* node){
 		"	mov		%%rsp,	%%rbp\n"
 		"%s"						// Statement ASM
 	;
-	const char* statementAsm = node->lhs ? GenStatementAsm(node->lhs) : "";
+	const char* statementAsm = node->list->count ? GenerateAsmFromList(node->list) : NULL;
+	if(statementAsm == NULL){
+		FatalM("Implicit returns not yet handled. In gen.h", __LINE__);
+	}
 	int charCount =
 		(2 * strlen(node->value.strVal))	// identifier x2
 		+ strlen(statementAsm)				// Inner ASM
@@ -411,4 +422,19 @@ static const char* GenFunctionAsm(ASTNode* node){
 
 const char* GenerateAsm(ASTNode* node){
 	return GenFunctionAsm(node);
+}
+
+const char* GenerateAsmFromList(ASTNodeList* list){
+	if(list->count < 1)	return "";
+	const char* generated = GenStatementAsm(list->nodes[0]);
+	char* buffer = malloc(strlen(generated) + 1);
+	strcpy(buffer, generated);
+	int i = 1;
+	while(i < list->count){
+		generated = GenStatementAsm(list->nodes[i]);
+		buffer = ResizeBlock(buffer, strlen(buffer) + strlen(generated));
+		strcat(buffer, generated);
+		i++;
+	}
+	return buffer;
 }

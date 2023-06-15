@@ -1,7 +1,8 @@
 # <comment>				::= "//" { <letter> | <digit> }
 <program>				::= <function>
-<function>				::= "int" "main" "(" ")" "{" <return_statement> "}"
-<return_statement>		::= "return" <int>
+<function>				::= "int" "main" "(" ")" "{" { <statement> } "}"
+<statement>				::= <return_statement>
+<return_statement>		::= "return" <int> ';'
 <expression>			::= <logical_or_expr>
 <logical_or_expr>		::= <logical_and_expr> { "||" <logical_and_expr> }
 <logical_and_expr>		::= <bitwise_or_expr> { "&&" <bitwise_or_expr> }
