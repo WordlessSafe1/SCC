@@ -1,10 +1,9 @@
 #ifndef LEX_INCLUDED
 #define LEX_INCLUDED
 
+#include "defs.h"
 #include "types.h"
 #include "globals.h"
-
-bool streq(const char*, const char*);
 
 static Token* Tokenize(const char* str){
 	Token* token = malloc(sizeof(Token));
@@ -118,8 +117,5 @@ Token* GetToken(){
 	return str ? Tokenize(str) : NULL;
 }
 
-bool streq(const char* lhs, const char* rhs){
-	return !strcmp(lhs, rhs);
-}
 
 #endif

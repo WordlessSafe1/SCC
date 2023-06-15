@@ -369,14 +369,14 @@ static const char* GenStatementAsm(ASTNode* node){
 	if(node->lhs == NULL)
 		return
 			"	mov		$0,		%eax\n"
-			"	mov		%rbp, %rsp\n"
+			"	mov		%rbp,	%rsp\n"
 			"	pop		%rbp\n"
 			"	ret\n"
 		;
 	const char* innerAsm = GenExpressionAsm(node->lhs);
 	const char* format =
 		"%s"
-		"	mov		%%rbp, %%rsp\n"
+		"	mov		%%rbp,	%%rsp\n"
 		"	pop		%%rbp\n"
 		"	ret\n"
 	;
@@ -394,7 +394,7 @@ static const char* GenFunctionAsm(ASTNode* node){
 		"	.globl %s\n"			// Identifier
 		"%s:\n"						// Identifier
 		"	push	%%rbp\n"
-		"	mov		%%rsp, %%rbp\n"
+		"	mov		%%rsp,	%%rbp\n"
 		"%s"						// Statement ASM
 	;
 	const char* statementAsm = node->lhs ? GenStatementAsm(node->lhs) : "";

@@ -10,4 +10,6 @@
 #define false 0
 #define bool unsigned
 
+#define streq(lhs, rhs) !strcmp(lhs, rhs)
+
 #endif
