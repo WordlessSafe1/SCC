@@ -106,7 +106,7 @@ ASTNode* ParseBitwiseAndExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_Ampersand){
 		GetToken();
-		lhs = MakeASTNode(A_BitwiseAnd,	lhs,	ParseEqualityExpression(),	0,	NULL);	break;
+		lhs = MakeASTNode(A_BitwiseAnd,	lhs,	ParseEqualityExpression(),	0,	NULL);
 		tok = PeekToken();
 	}
 	return lhs;
@@ -117,7 +117,7 @@ ASTNode* ParseBitwiseXorExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_Caret){
 		GetToken();
-		lhs = MakeASTNode(A_BitwiseXor,	lhs,	ParseBitwiseAndExpression(),	0,	NULL);	break;
+		lhs = MakeASTNode(A_BitwiseXor,	lhs,	ParseBitwiseAndExpression(),	0,	NULL);
 		tok = PeekToken();
 	}
 	return lhs;
@@ -128,7 +128,7 @@ ASTNode* ParseBitwiseOrExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_Pipe){
 		GetToken();
-		lhs = MakeASTNode(A_BitwiseOr,	lhs,	ParseBitwiseXorExpression(),	0,	NULL);	break;
+		lhs = MakeASTNode(A_BitwiseOr,	lhs,	ParseBitwiseXorExpression(),	0,	NULL);
 		tok = PeekToken();
 	}
 	return lhs;
@@ -139,7 +139,7 @@ ASTNode* ParseLogicalAndExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_DoubleAmpersand){
 		GetToken();
-		lhs = MakeASTNode(A_LogicalAnd,	lhs,	ParseBitwiseOrExpression(),	0,	NULL);	break;
+		lhs = MakeASTNode(A_LogicalAnd,	lhs,	ParseBitwiseOrExpression(),	0,	NULL);
 		tok = PeekToken();
 	}
 	return lhs;
@@ -150,7 +150,7 @@ ASTNode* ParseLogicalOrExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_DoublePipe){
 		GetToken();
-		lhs = MakeASTNode(A_LogicalOr,	lhs,	ParseBitwiseOrExpression(),	0,	NULL);	break;
+		lhs = MakeASTNode(A_LogicalOr,	lhs,	ParseBitwiseOrExpression(),	0,	NULL);
 		tok = PeekToken();
 	}
 	return lhs;
