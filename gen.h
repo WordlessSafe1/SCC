@@ -432,7 +432,7 @@ const char* GenerateAsmFromList(ASTNodeList* list){
 	int i = 1;
 	while(i < list->count){
 		generated = GenStatementAsm(list->nodes[i]);
-		buffer = ResizeBlock(buffer, strlen(buffer) + strlen(generated));
+		buffer = realloc(buffer, strlen(buffer) + strlen(generated));
 		strcat(buffer, generated);
 		i++;
 	}

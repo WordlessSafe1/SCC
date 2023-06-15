@@ -12,4 +12,3 @@ extern_main FILE* fptr;
 extern_main int Line init(1);
 
 extern_main void FatalM(const char*, int);
-extern_main void* ResizeBlock(void* block, int newSize);

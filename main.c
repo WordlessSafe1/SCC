@@ -61,10 +61,3 @@ void FatalM(const char* msg, int line){
 	else				printf("Fatal error encountered on ln %d:\n\t%s\n", line, msg);
 	exit(-1);
 }
-
-void* ResizeBlock(void* block, int newSize){
-	void* new = malloc(newSize);
-	memcpy(new, block, newSize);
-	free(block);
-	return new;
-}

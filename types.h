@@ -104,7 +104,7 @@ ASTNodeList* MakeASTNodeList(){
 ASTNodeList* AddNodeToASTList(ASTNodeList* list, ASTNode* node){
 	while(list->count >= list->size){
 		list->size += 10;
-		list->nodes = ResizeBlock(list->nodes, list->size);
+		list->nodes = realloc(list->nodes, list->size);
 	}
 	list->nodes[list->count++] = node;
 	return list;
