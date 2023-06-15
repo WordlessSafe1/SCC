@@ -23,6 +23,19 @@ static Token* Tokenize(const char* str){
 	else if(streq(str, "*"))		token->type = T_Asterisk;
 	else if(streq(str, "/"))		token->type = T_Divide;
 	else if(streq(str, "%"))		token->type = T_Percent;
+	else if(streq(str, "<"))		token->type = T_Less;
+	else if(streq(str, ">"))		token->type = T_Greater;
+	else if(streq(str, "<="))		token->type = T_LessEqual;
+	else if(streq(str, ">="))		token->type = T_GreaterEqual;
+	else if(streq(str, "=="))		token->type = T_DoubleEqual;
+	else if(streq(str, "!="))		token->type = T_BangEqual;
+	else if(streq(str, "&"))		token->type = T_Ampersand;
+	else if(streq(str, "^"))		token->type = T_Caret;
+	else if(streq(str, "|"))		token->type = T_Pipe;
+	else if(streq(str, "&&"))		token->type = T_DoubleAmpersand;
+	else if(streq(str, "||"))		token->type = T_DoublePipe;
+	else if(streq(str, "<<"))		token->type = T_DoubleLess;
+	else if(streq(str, ">>"))		token->type = T_DoubleGreater;
 	else if(isdigit(str[0])){
 		token->type = T_LitInt;
 		token->value.intVal = atoi(str);
@@ -52,10 +65,30 @@ char* ShiftToken(){
 			if(i)	break;
 			else	continue;
 		}
-		if(strchr("(){};-~!+*/%%", c)){
+		if(strchr("(){};-~!+*/%%<>=&^|", c)){
 			if(i){
 				ungetc(c, fptr);
 				break;
+			}
+			// If double symbol is valid operator
+			if(strchr("=|&<>", c)){
+				char nextChar = fgetc(fptr);
+				if(c == nextChar){
+					token[i++] = c;
+					token[i++] = nextChar;
+					break;
+				}
+				ungetc(nextChar, fptr);
+			}
+			// If symbol followed by equal is valid operator
+			if(strchr("=<>!", c)){
+				char nextChar = fgetc(fptr);
+				if(nextChar == '='){
+					token[i++] = c;
+					token[i++] = nextChar;
+					break;
+				}
+				ungetc(nextChar, fptr);
 			}
 			token[i++] = c;
 			break;
@@ -86,11 +119,7 @@ Token* GetToken(){
 }
 
 bool streq(const char* lhs, const char* rhs){
-	int i = 0;
-	while(lhs[i] && rhs[i])
-		if(lhs[i] != rhs[i])	return false;
-		else					i++;
-	return lhs[i] == rhs[i];
+	return !strcmp(lhs, rhs);
 }
 
 #endif

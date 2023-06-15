@@ -57,8 +57,107 @@ ASTNode* ParseAdditiveExpression(){
 	return lhs;
 }
 
+ASTNode* ParseBitShiftExpression(){
+	ASTNode* lhs = ParseAdditiveExpression();
+	Token* tok = PeekToken();
+	while(tok->type == T_DoubleLess || tok->type == T_DoubleGreater){
+		GetToken();
+		switch(tok->type){
+			case T_DoubleLess:		lhs = MakeASTNode(A_LeftShift,	lhs,	ParseAdditiveExpression(),	0,	NULL);	break;
+			case T_DoubleGreater:	lhs = MakeASTNode(A_RightShift,	lhs,	ParseAdditiveExpression(),	0,	NULL);	break;
+		}
+		tok = PeekToken();
+	}
+	return lhs;
+}
+
+ASTNode* ParseRelationalExpression(){
+	ASTNode* lhs = ParseBitShiftExpression();
+	Token* tok = PeekToken();
+	while(tok->type == T_Less || tok->type == T_Greater || tok->type == T_LessEqual || tok->type == T_GreaterEqual){
+		GetToken();
+		switch(tok->type){
+			case T_Less:			lhs = MakeASTNode(A_LessThan,		lhs,	ParseBitShiftExpression(),	0,	NULL);	break;
+			case T_Greater:			lhs = MakeASTNode(A_GreaterThan,	lhs,	ParseBitShiftExpression(),	0,	NULL);	break;
+			case T_LessEqual:		lhs = MakeASTNode(A_LessOrEqual,	lhs,	ParseBitShiftExpression(),	0,	NULL);	break;
+			case T_GreaterEqual:	lhs = MakeASTNode(A_GreaterOrEqual,	lhs,	ParseBitShiftExpression(),	0,	NULL);	break;
+		}
+		tok = PeekToken();
+	}
+	return lhs;
+}
+
+ASTNode* ParseEqualityExpression(){
+	ASTNode* lhs = ParseRelationalExpression();
+	Token* tok = PeekToken();
+	while(tok->type == T_DoubleEqual || tok->type == T_BangEqual){
+		GetToken();
+		switch(tok->type){
+			case T_DoubleEqual:		lhs = MakeASTNode(A_EqualTo,	lhs,	ParseRelationalExpression(),	0,	NULL);	break;
+			case T_BangEqual:		lhs = MakeASTNode(A_NotEqualTo,	lhs,	ParseRelationalExpression(),	0,	NULL);	break;
+		}
+		tok = PeekToken();
+	}
+	return lhs;
+}
+
+ASTNode* ParseBitwiseAndExpression(){
+	ASTNode* lhs = ParseEqualityExpression();
+	Token* tok = PeekToken();
+	while(tok->type == T_Ampersand){
+		GetToken();
+		lhs = MakeASTNode(A_BitwiseAnd,	lhs,	ParseEqualityExpression(),	0,	NULL);	break;
+		tok = PeekToken();
+	}
+	return lhs;
+}
+
+ASTNode* ParseBitwiseXorExpression(){
+	ASTNode* lhs = ParseBitwiseAndExpression();
+	Token* tok = PeekToken();
+	while(tok->type == T_Caret){
+		GetToken();
+		lhs = MakeASTNode(A_BitwiseXor,	lhs,	ParseBitwiseAndExpression(),	0,	NULL);	break;
+		tok = PeekToken();
+	}
+	return lhs;
+}
+
+ASTNode* ParseBitwiseOrExpression(){
+	ASTNode* lhs = ParseBitwiseXorExpression();
+	Token* tok = PeekToken();
+	while(tok->type == T_Pipe){
+		GetToken();
+		lhs = MakeASTNode(A_BitwiseOr,	lhs,	ParseBitwiseXorExpression(),	0,	NULL);	break;
+		tok = PeekToken();
+	}
+	return lhs;
+}
+
+ASTNode* ParseLogicalAndExpression(){
+	ASTNode* lhs = ParseBitwiseOrExpression();
+	Token* tok = PeekToken();
+	while(tok->type == T_DoubleAmpersand){
+		GetToken();
+		lhs = MakeASTNode(A_LogicalAnd,	lhs,	ParseBitwiseOrExpression(),	0,	NULL);	break;
+		tok = PeekToken();
+	}
+	return lhs;
+}
+
+ASTNode* ParseLogicalOrExpression(){
+	ASTNode* lhs = ParseLogicalAndExpression();
+	Token* tok = PeekToken();
+	while(tok->type == T_DoublePipe){
+		GetToken();
+		lhs = MakeASTNode(A_LogicalOr,	lhs,	ParseBitwiseOrExpression(),	0,	NULL);	break;
+		tok = PeekToken();
+	}
+	return lhs;
+}
+
 ASTNode* ParseExpression(){
-	return ParseAdditiveExpression();
+	return ParseLogicalOrExpression();
 }
 
 ASTNode* ParseStatement(){

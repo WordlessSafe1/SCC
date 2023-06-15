@@ -21,6 +21,19 @@ enum eTokenCategory {
 	T_Asterisk,
 	T_Divide,
 	T_Percent,
+	T_Less,
+	T_Greater,
+	T_LessEqual,
+	T_GreaterEqual,
+	T_DoubleEqual,
+	T_BangEqual,
+	T_Ampersand,
+	T_Caret,
+	T_Pipe,
+	T_DoubleAmpersand,
+	T_DoublePipe,
+	T_DoubleLess,
+	T_DoubleGreater,
 };
 typedef enum eTokenCategory TokenType;
 
@@ -37,6 +50,19 @@ enum eNodeType {
 	A_Modulo,
 	A_Add,
 	A_Subtract,
+	A_LeftShift,
+	A_RightShift,
+	A_LessThan,
+	A_GreaterThan,
+	A_LessOrEqual,
+	A_GreaterOrEqual,
+	A_EqualTo,
+	A_NotEqualTo,
+	A_BitwiseAnd,
+	A_BitwiseXor,
+	A_BitwiseOr,
+	A_LogicalAnd,
+	A_LogicalOr,
 };
 typedef enum eNodeType NodeType;
 

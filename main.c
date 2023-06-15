@@ -51,7 +51,7 @@ int main(int argc, char** argv){
 	Line = NOLINE;
 	const char* Asm = GenerateAsm(ast);
 	fptr = fopen(outputTarget, "w");
-	fprintf(fptr, Asm);
+	fprintf(fptr, "%s", Asm);
 	fclose(fptr);
 	return 0;
 }
