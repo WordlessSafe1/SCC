@@ -290,7 +290,6 @@ static const char* GenBitwiseOr(ASTNode* node){
 static const char* GenLogicalAnd(ASTNode* node){
 	if(node->lhs == NULL)	FatalM("Expected factor before binary logical and operator!", Line);
 	if(node->rhs == NULL)	FatalM("Expected factor after binary logical and operator!", Line);
-	labelPref++;
 	const char* format =
 		"%s"
 		"	cmp		$0,		%%rax\n"
@@ -307,6 +306,7 @@ static const char* GenLogicalAnd(ASTNode* node){
 	const char* lhs = GenExpressionAsm(node->lhs);
 	int charCount = strlen(format) + strlen(lhs) + strlen(rhs) + 1;
 	char* str = malloc(charCount * sizeof(char));
+	labelPref++;
 	snprintf(str, charCount, format, lhs, labelPref, labelPref, labelPref, rhs, labelPref);
 	return str;
 }
@@ -314,7 +314,6 @@ static const char* GenLogicalAnd(ASTNode* node){
 static const char* GenLogicalOr(ASTNode* node){
 	if(node->lhs == NULL)	FatalM("Expected factor before binary logical and operator!", Line);
 	if(node->rhs == NULL)	FatalM("Expected factor after binary logical and operator!", Line);
-	labelPref++;
 	const char* format =
 		"%s"
 		"	cmp		$0,		%%rax\n"
@@ -332,6 +331,7 @@ static const char* GenLogicalOr(ASTNode* node){
 	const char* lhs = GenExpressionAsm(node->lhs);
 	int charCount = strlen(format) + strlen(lhs) + strlen(rhs) + 1;
 	char* str = malloc(charCount * sizeof(char));
+	labelPref++;
 	snprintf(str, charCount, format, lhs, labelPref, labelPref, labelPref, rhs, labelPref);
 	return str;
 }
