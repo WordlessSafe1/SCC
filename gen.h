@@ -8,6 +8,7 @@ static int labelPref = 9;
 static const char* GenExpressionAsm(ASTNode* node);
 const char* GenerateAsmFromList(ASTNodeList* list);
 
+
 static const char* GenLitInt(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op != A_LitInt)	FatalM("Expected literal int in expression!", Line);
@@ -19,315 +20,143 @@ static const char* GenLitInt(ASTNode* node){
 	return str;
 }
 
-static const char* GenNegate(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected expression after unary negation operator!", Line);
-	const char* format = "%s	neg		%rax\n";
-	const char* innerAsm = GenExpressionAsm(node->lhs);
-	int charCount = strlen(format) + strlen(innerAsm) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, format, innerAsm);
-	return str;
-}
-
-static const char* GenBitwiseComplement(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected expression after unary negation operator!", Line);
-	const char* format = "%s	not		%rax\n";
-	const char* innerAsm = GenExpressionAsm(node->lhs);
-	int charCount = strlen(format) + strlen(innerAsm) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, format, innerAsm);
-	return str;
-}
-
-static const char* GenLogicalNot(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected expression after unary negation operator!", Line);
-	const char* instr =
-		"	cmp		$0,		%rax\n"
-		"	mov		$0,		%rax\n"
-		"	sete	%al\n"
-	;
+static const char* GenUnary(ASTNode* node){
+	if(node->lhs == NULL)	FatalM("Expected expression after unary operator!", Line);
+	const char* instr;
+	switch(node->op){
+		case A_Negate:				instr = "	neg		%rax\n";	break;
+		case A_BitwiseComplement:	instr = "	not		%rax\n";	break;
+		case A_LogicalNot:
+			instr =
+				"	cmp		$0,		%rax\n"
+				"	mov		$0,		%rax\n"
+				"	sete	%al\n"
+			;
+			break;
+	}
 	const char* innerAsm = GenExpressionAsm(node->lhs);
 	int charCount = strlen(instr) + strlen(innerAsm) + 1;
 	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s", innerAsm, instr);
+	snprintf(str, charCount,"%s%s", innerAsm, instr);
 	return str;
 }
 
-static const char* GenMultiply(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary multiplication operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary multiplication operator!", Line);
+static const char* GenLTRBinary(ASTNode* node){
+	if(node->lhs == NULL)	FatalM("Expected factor before binary operator!", Line);
+	if(node->rhs == NULL)	FatalM("Expected factor after binary operator!", Line);
 	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	imul	%rcx,	%rax\n"
-	;
+	const char* popInstr = "	pop		%rcx\n";
+	const char* instr;
+	switch(node->op){
+		case A_Multiply:			instr = "	imul	%rcx,	%rax\n";	break;
+		case A_Add:					instr = "	addq	%rcx,	%rax\n";	break;
+		case A_BitwiseAnd:			instr = "	and		%rcx,	%rax\n";	break;
+		case A_BitwiseXor:			instr = "	xor		%rcx,	%rax\n";	break;
+		case A_BitwiseOr:			instr = "	or		%rcx,	%rax\n";	break;
+		case A_EqualTo:
+			instr =
+				"	cmp		%rcx,	%rax\n"
+				"	mov		$0,		%rax\n"
+				"	sete	%al\n"
+			;
+			break;
+		case A_NotEqualTo:
+			instr =
+				"	cmp		%rcx,	%rax\n"
+				"	mov		$0,		%rax\n"
+				"	setne	%al\n"
+			;
+			break;
+	}
 	const char* lhs = GenExpressionAsm(node->lhs);
 	const char* rhs = GenExpressionAsm(node->rhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
+	int charCount = strlen(instr) + strlen(pushInstr) + strlen(popInstr) + strlen(lhs) + strlen(rhs) + 1;
 	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", lhs, pushInstr, rhs, instr);
+	snprintf(str, charCount, "%s%s%s%s%s", lhs, pushInstr, rhs, popInstr, instr);
 	return str;
 }
 
-static const char* GenDivide(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary division operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary division operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	cdq\n"
-		"	idiv	%rcx\n"
-	;
+static const char* GenRTLBinary(ASTNode* node){
+	if(node->lhs == NULL)	FatalM("Expected factor before binary operator!", Line);
+	if(node->rhs == NULL)	FatalM("Expected factor after binary operator!", Line);
+	const char* pushInstr	= "	push	%rax\n";
+	const char* popInstr	= "	pop		%rcx\n";
+	const char* instr;
+	switch(node->op){
+		case A_Subtract:	instr = "	subq	%rcx,	%rax\n";	break;
+		case A_LeftShift:	instr = "	shl		%rcx,	%rax\n";	break;
+		case A_RightShift:	instr = "	sar		%rcx,	%rax\n";	break;
+		case A_Divide:
+			instr =
+				"	cdq\n"
+				"	idiv	%rcx\n"
+			;
+			break;
+		case A_Modulo:
+			instr =
+				"	cdq\n"
+				"	idiv	%rcx\n"
+				"	mov		%rdx,	%rax\n"
+			;
+			break;
+		case A_LessThan:
+			instr =
+				"	cmp		%rcx,	%rax\n"
+				"	mov		$0,		%rax\n"
+				"	setl	%al\n"
+			;
+			break;
+		case A_GreaterThan:
+			instr =
+				"	cmp		%rcx,	%rax\n"
+				"	mov		$0,		%rax\n"
+				"	setg	%al\n"
+			;
+			break;
+	}
 	const char* lhs = GenExpressionAsm(node->lhs);
 	const char* rhs = GenExpressionAsm(node->rhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
+	int charCount = strlen(instr) + strlen(pushInstr) + strlen(popInstr) + strlen(lhs) + strlen(rhs) + 1;
 	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", rhs, pushInstr, lhs, instr);
+	snprintf(str, charCount, "%s%s%s%s%s", rhs, pushInstr, lhs, popInstr, instr);
 	return str;
 }
 
-static const char* GenModulo(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary division operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary division operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	cdq\n"
-		"	idiv	%rcx\n"
-		"	mov		%rdx,	%rax\n"
-	;
-	const char* lhs = GenExpressionAsm(node->lhs);
-	const char* rhs = GenExpressionAsm(node->rhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", rhs, pushInstr, lhs, instr);
-	return str;
-}
-
-static const char* GenSubtract(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary subtraction operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary subtraction operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	subq	%rcx,	%rax\n"
-	;
-	const char* lhs = GenExpressionAsm(node->lhs);
-	const char* rhs = GenExpressionAsm(node->rhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", rhs, pushInstr, lhs, instr);
-	return str;
-}
-
-static const char* GenAdd(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary addition operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary addition operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	addq	%rcx,	%rax\n"
-	;
-	const char* lhs = GenExpressionAsm(node->lhs);
-	const char* rhs = GenExpressionAsm(node->rhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", lhs, pushInstr, rhs, instr);
-	return str;
-}
-
-static const char* GenLShift(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary left shift operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary left shift operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	shl		%rcx,	%rax\n"
-	;
-	const char* rhs = GenExpressionAsm(node->rhs);
-	const char* lhs = GenExpressionAsm(node->lhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", rhs, pushInstr, lhs, instr);
-	return str;
-}
-
-static const char* GenRShift(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary right shift operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary right shift operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	sar		%rcx,	%rax\n"
-	;
-	const char* rhs = GenExpressionAsm(node->rhs);
-	const char* lhs = GenExpressionAsm(node->lhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", rhs, pushInstr, lhs, instr);
-	return str;
-}
-
-static const char* GenLessThan(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary less than operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor bafter binary less than operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	cmp		%rcx,	%rax\n"
-		"	mov		$0,		%rax\n"
-		"	setl	%al\n"
-	;
-	const char* rhs = GenExpressionAsm(node->rhs);
-	const char* lhs = GenExpressionAsm(node->lhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", rhs, pushInstr, lhs, instr);
-	return str;
-}
-
-static const char* GenGreaterThan(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary greater than operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary greater than operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	cmp		%rcx,	%rax\n"
-		"	mov		$0,		%rax\n"
-		"	setg	%al\n"
-	;
-	const char* rhs = GenExpressionAsm(node->rhs);
-	const char* lhs = GenExpressionAsm(node->lhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", rhs, pushInstr, lhs, instr);
-	return str;
-}
-
-static const char* GenEqualTo(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary equality operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary equality operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	cmp		%rcx,	%rax\n"
-		"	mov		$0,		%rax\n"
-		"	sete	%al\n"
-	;
-	const char* rhs = GenExpressionAsm(node->rhs);
-	const char* lhs = GenExpressionAsm(node->lhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", lhs, pushInstr, rhs, instr);
-	return str;
-}
-
-static const char* GenNotEqualTo(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary inequality operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary inequality operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	cmp		%rcx,	%rax\n"
-		"	mov		$0,		%rax\n"
-		"	setne	%al\n"
-	;
-	const char* rhs = GenExpressionAsm(node->rhs);
-	const char* lhs = GenExpressionAsm(node->lhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", lhs, pushInstr, rhs, instr);
-	return str;
-}
-
-static const char* GenBitwiseAnd(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary bitwise and operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary bitwise and operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	and		%rcx,	%rax\n"
-	;
-	const char* rhs = GenExpressionAsm(node->rhs);
-	const char* lhs = GenExpressionAsm(node->lhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", lhs, pushInstr, rhs, instr);
-	return str;
-}
-
-static const char* GenBitwiseXor(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary bitwise xor operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary bitwise xor operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	xor		%rcx,	%rax\n"
-	;
-	const char* rhs = GenExpressionAsm(node->rhs);
-	const char* lhs = GenExpressionAsm(node->lhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", lhs, pushInstr, rhs, instr);
-	return str;
-}
-
-static const char* GenBitwiseOr(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary bitwise or operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary bitwise or operator!", Line);
-	const char* pushInstr = "	push	%rax\n";
-	const char* instr =
-		"	pop		%rcx\n"
-		"	or		%rcx,	%rax\n"
-	;
-	const char* rhs = GenExpressionAsm(node->rhs);
-	const char* lhs = GenExpressionAsm(node->lhs);
-	int charCount = strlen(instr) + strlen(pushInstr) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s%s", lhs, pushInstr, rhs, instr);
-	return str;
-}
-
-static const char* GenLogicalAnd(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary logical and operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary logical and operator!", Line);
-	const char* format =
-		"%s"
-		"	cmp		$0,		%%rax\n"
-		"	jne		%d1f\n"
-		"	jmp		%d2f\n"
-		"%d1:\n"
-		"%s"
-		"	cmp		$0,		%%rax\n"
-		"	mov		$0,		%%rax\n"
-		"	setne	%%al\n"
-		"%d2:\n"
-	;
-	const char* rhs = GenExpressionAsm(node->rhs);
-	const char* lhs = GenExpressionAsm(node->lhs);
-	int charCount = strlen(format) + strlen(lhs) + strlen(rhs) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	labelPref++;
-	snprintf(str, charCount, format, lhs, labelPref, labelPref, labelPref, rhs, labelPref);
-	return str;
-}
-
-static const char* GenLogicalOr(ASTNode* node){
-	if(node->lhs == NULL)	FatalM("Expected factor before binary logical and operator!", Line);
-	if(node->rhs == NULL)	FatalM("Expected factor after binary logical and operator!", Line);
-	const char* format =
-		"%s"
-		"	cmp		$0,		%%rax\n"
-		"	je		%d1f\n"
-		"	mov		$1,		%%rax\n"
-		"	jmp		%d2f\n"
-		"%d1:\n"
-		"%s"
-		"	cmp		$0,		%%rax\n"
-		"	mov		$0,		%%rax\n"
-		"	setne	%%al\n"
-		"%d2:\n"
-	;
+static const char* GenShortCircuiting(ASTNode* node){
+	if(node->lhs == NULL)	FatalM("Expected factor before binary operator!", Line);
+	if(node->rhs == NULL)	FatalM("Expected factor after binary operator!", Line);
+	const char* format;
+	switch(node->op){
+		case A_LogicalAnd:
+			format =
+				"%s"
+				"	cmp		$0,		%%rax\n"
+				"	jne		%d1f\n"
+				"	jmp		%d2f\n"
+				"%d1:\n"
+				"%s"
+				"	cmp		$0,		%%rax\n"
+				"	mov		$0,		%%rax\n"
+				"	setne	%%al\n"
+				"%d2:\n"
+			;
+			break;
+		case A_LogicalOr:
+			format = 
+				"%s"
+				"	cmp		$0,		%%rax\n"
+				"	je		%d1f\n"
+				"	mov		$1,		%%rax\n"
+				"	jmp		%d2f\n"
+				"%d1:\n"
+				"%s"
+				"	cmp		$0,		%%rax\n"
+				"	mov		$0,		%%rax\n"
+				"	setne	%%al\n"
+				"%d2:\n"
+			;
+			break;
+	}
 	const char* rhs = GenExpressionAsm(node->rhs);
 	const char* lhs = GenExpressionAsm(node->lhs);
 	int charCount = strlen(format) + strlen(lhs) + strlen(rhs) + 1;
@@ -341,25 +170,30 @@ static const char* GenExpressionAsm(ASTNode* node){
 	if(node == NULL)					FatalM("Expected an AST node, got NULL instead.", Line);
 	switch(node->op){
 		case A_LitInt:				return GenLitInt(node);
-		case A_Negate:				return GenNegate(node);
-		case A_BitwiseComplement:	return GenBitwiseComplement(node);
-		case A_LogicalNot:			return GenLogicalNot(node);
-		case A_Multiply:			return GenMultiply(node);
-		case A_Divide:				return GenDivide(node);
-		case A_Modulo:				return GenModulo(node);
-		case A_Subtract:			return GenSubtract(node);
-		case A_Add:					return GenAdd(node);
-		case A_LeftShift:			return GenLShift(node);
-		case A_RightShift:			return GenRShift(node);
-		case A_LessThan:			return GenLessThan(node);
-		case A_GreaterThan:			return GenGreaterThan(node);
-		case A_EqualTo:				return GenEqualTo(node);
-		case A_NotEqualTo:			return GenNotEqualTo(node);
-		case A_BitwiseAnd:			return GenBitwiseAnd(node);
-		case A_BitwiseXor:			return GenBitwiseXor(node);
-		case A_BitwiseOr:			return GenBitwiseOr(node);
-		case A_LogicalAnd:			return GenLogicalAnd(node);
-		case A_LogicalOr:			return GenLogicalOr(node);
+		// Unary Operators
+		case A_Negate:
+		case A_BitwiseComplement:
+		case A_LogicalNot:			return GenUnary(node);
+		// Left-To-Right Operators
+		case A_Add:
+		case A_Multiply:
+		case A_EqualTo:
+		case A_NotEqualTo:
+		case A_BitwiseAnd:
+		case A_BitwiseXor:
+		case A_BitwiseOr:			return GenLTRBinary(node);
+		// Right-To-Left Operators
+		case A_Divide:
+		case A_Modulo:
+		case A_Subtract:
+		case A_LeftShift:
+		case A_RightShift:
+		case A_LessThan:
+		case A_GreaterThan:			return GenRTLBinary(node);
+		// Short-Circuiting Operators
+		case A_LogicalAnd:
+		case A_LogicalOr:			return GenShortCircuiting(node);
+		// Unhandled
 		case A_Undefined:			return "";
 		default:					FatalM("Invalid expression in generation stage!", Line);
 	}
