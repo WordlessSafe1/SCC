@@ -9,6 +9,7 @@
 #include "lex.h"
 #include "parse.h"
 #include "gen.h"
+#include "varTable.h"
 
 #ifdef extern_main
 	#undef extern_main
@@ -32,6 +33,7 @@ char* TokenTypeNames[] = {
 };
 
 int main(int argc, char** argv){
+	InitVarTable();
 	if(argc < 2)	FatalM("No input files specified!", NOLINE);
 	const char* outputTarget = "a.s"; 
 	const char* inputTarget = NULL; 
