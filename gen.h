@@ -88,13 +88,13 @@ static const char* GenRTLBinary(ASTNode* node){
 		case A_RightShift:	instr = "	sar		%rcx,	%rax\n";	break;
 		case A_Divide:
 			instr =
-				"	cdq\n"
+				"	cqo\n"
 				"	idiv	%rcx\n"
 			;
 			break;
 		case A_Modulo:
 			instr =
-				"	cdq\n"
+				"	cqo\n"
 				"	idiv	%rcx\n"
 				"	mov		%rdx,	%rax\n"
 			;
