@@ -34,6 +34,7 @@ enum eTokenCategory {
 	T_DoublePipe,
 	T_DoubleLess,
 	T_DoubleGreater,
+	T_Equal,
 };
 typedef enum eTokenCategory TokenType;
 
@@ -63,15 +64,21 @@ enum eNodeType {
 	A_BitwiseOr,
 	A_LogicalAnd,
 	A_LogicalOr,
+	A_Declare,
+	A_VarRef,
+	A_Assign,
 };
 typedef enum eNodeType NodeType;
 
+union flexible_value {
+	int intVal;
+	const char* strVal;
+};
+typedef union flexible_value FlexibleValue;
+
 struct token {
 	TokenType type;
-	union{
-		int intVal;
-		const char* strVal;
-	} value;
+	FlexibleValue value;
 };
 typedef struct token Token;
 
@@ -80,10 +87,8 @@ struct ast_node {
 	struct ast_node *lhs;
 	struct ast_node *rhs;
 	struct ast_node_list *list;
-	union {
-		int intVal;
-		char* strVal;
-	} value;
+	FlexibleValue value;
+	FlexibleValue secondValue;
 };
 typedef struct ast_node ASTNode;
 
@@ -110,33 +115,55 @@ ASTNodeList* AddNodeToASTList(ASTNodeList* list, ASTNode* node){
 	return list;
 }
 
-ASTNode* MakeASTNode(int op, ASTNode* lhs, ASTNode* rhs, int intValue, const char* strValue){
+ASTNode* MakeASTNodeExtended(int op, ASTNode* lhs, ASTNode* rhs, FlexibleValue value, FlexibleValue secondValue){
 	ASTNode* node = malloc(sizeof(ASTNode));
 	if(node == NULL)
 		FatalM("Failed to malloc in MakeASTNode()", Line);
 	node->op = op;
 	node->lhs = lhs;
 	node->rhs = rhs;
-	if(strValue != NULL){
-		node->value.strVal = malloc((1 + strlen(strValue)) * sizeof(char));
-		strcpy(node->value.strVal, strValue);
-	}
-	else
-		node->value.intVal = intValue;
+	node->value = value;
+	node->secondValue = secondValue;
 	return node;
 }
 
-ASTNode* MakeASTLeaf(int op, int intValue, const char* strValue){
-	return MakeASTNode(op, NULL, NULL, intValue, strValue);
+ASTNode* MakeASTNode(int op, ASTNode* lhs, ASTNode* rhs, FlexibleValue value){
+	ASTNode* node = malloc(sizeof(ASTNode));
+	if(node == NULL)
+		FatalM("Failed to malloc in MakeASTNode()", Line);
+	node->op = op;
+	node->lhs = lhs;
+	node->rhs = rhs;
+	node->value = value;
+	node->secondValue.strVal = NULL;
+	return node;
 }
 
-ASTNode* MakeASTUnary(int op, ASTNode* lhs, int intValue, const char* strValue){
-	return MakeASTNode(op, lhs, NULL, intValue, strValue);
+ASTNode* MakeASTLeaf(int op, FlexibleValue value){
+	return MakeASTNode(op, NULL, NULL, value);
 }
 
-ASTNode* MakeASTList(int op, ASTNodeList* list, int intValue, const char* strValue){
-	ASTNode* node = MakeASTLeaf(op, intValue, strValue);
+ASTNode* MakeASTUnary(int op, ASTNode* lhs, FlexibleValue value){
+	return MakeASTNode(op, lhs, NULL, value);
+}
+
+ASTNode* MakeASTList(int op, ASTNodeList* list, FlexibleValue value){
+	ASTNode* node = MakeASTLeaf(op, value);
 	node->list = list;
+}
+
+FlexibleValue FlexStr(const char* str){
+	FlexibleValue f = { .strVal = str };
+	return f;
+}
+
+FlexibleValue FlexInt(int num){
+	FlexibleValue f = { .intVal = num };
+	return f;
+}
+
+FlexibleValue FlexNULL(){
+	return FlexStr(NULL);
 }
 
 #endif

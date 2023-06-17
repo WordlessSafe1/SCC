@@ -29,13 +29,19 @@ static VarEntry* MakeVarEntry(const char* key, const char* val){
 }
 
 static VarList*** hashArray;
+static int* varCount;
 static int maxScope = 5;
 
-void CreateVarTable(int scope){
+static void CreateScope(int scope){
 	while(maxScope <= scope){
-		hashArray = realloc(hashArray, (maxScope + 5) * sizeof(VarList**));
-		for(int i = 0; i < 5; i++)
-			hashArray[maxScope+i] = NULL;
+		hashArray	= realloc(hashArray,	(maxScope + 5) * sizeof(VarList**));
+		varCount	= realloc(varCount,		(maxScope + 5) * sizeof(int));
+		stackIndex	= realloc(stackIndex,	(maxScope + 5) * sizeof(int));
+		for(int i = 0; i < 5; i++){
+			hashArray[maxScope+i]	= NULL;
+			varCount[maxScope+i]	= 0;
+			stackIndex[maxScope+i]	= 0;
+		}
 		maxScope += 5;
 	}
 	hashArray[scope] = malloc(sizeof(VarList*) * CAPACITY);
@@ -45,10 +51,15 @@ void CreateVarTable(int scope){
 
 void InitVarTable(){
 	// Allocate with the assumption of a maximum scope depth of 5
-	hashArray = malloc(sizeof(VarList**) * 5);
-	for (int i = 0; i < 5; i++)
+	hashArray	= malloc(sizeof(VarList**) * 5);
+	varCount	= malloc(sizeof(int) * 5);
+	stackIndex	= malloc(sizeof(int) * 5);
+	for (int i = 0; i < 5; i++){
 		hashArray[i] = NULL;
-	CreateVarTable(0);
+		varCount[i] = 0;
+		stackIndex[i] = 0;
+	}
+	CreateScope(0);
 	for(int i = 0; i < CAPACITY; i++)
 		hashArray[0][i] = NULL;
 }
@@ -58,6 +69,7 @@ void DestroyVarTable(int scope){
 		free(hashArray[scope][i]);
 	free(hashArray[scope]);
 	hashArray[scope] = NULL;
+	varCount[scope] = 0;
 }
 VarEntry* FindVar(const char* key, int scope);
 VarEntry* FindLocalVar(const char* key, int scope);
@@ -88,7 +100,7 @@ static VarEntry* FindVarPosition(const char* key, int scope, bool strict){
 		else		return FindVar(key, scope - 1);
 	while(list->item->key != key && list->next != NULL)
 		list = list->next;
-	if(list->item->key != key)
+	if(!streq(list->item->key, key))
 		if(scope < 1 || strict)	return NULL;
 		else		return FindVar(key, scope - 1);
 	return list->item;
@@ -107,16 +119,35 @@ VarList* InsertVar(const char* key, const char* value, int scope){
 	if(hashArray[scope] == NULL)
 		return NULL;
 	VarList* list = hashArray[scope][hash];
-	if(list == NULL)
+	if(list == NULL){
+		varCount[scope]++;
 		return hashArray[scope][hash] = MakeVarList(MakeVarEntry(key, value), NULL);
+	}
 	while(list->item->key != key && list->next != NULL){
 		trail++;
 		list = list->next;
 	}
-	if(list->item->key != key)
+	if(list->item->key != key){
+		varCount[scope]++;
 		return list->next = MakeVarList(MakeVarEntry(key, value), NULL);
+	}
+	list->item->value = value;
 	return list;
 }
 
+int GetLocalVarCount(int scope){
+	return varCount[scope];
+}
+
+int EnterScope(){
+	CreateScope(++scope);
+	return scope;
+}
+
+int ExitScope(){
+	DestroyVarTable(--scope);
+	stackIndex[scope] = 0;
+	return scope;
+}
 
 #undef CAPACITY

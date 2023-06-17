@@ -20,9 +20,22 @@ static const char* GenLitInt(ASTNode* node){
 	return str;
 }
 
+static const char* GenVarRef(ASTNode* node){
+	if(node == NULL)			FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
+	if(node->op != A_VarRef)	FatalM("Expected variable reference in expression! (In gen.h)", __LINE__);
+	const char* id = node->value.strVal;
+	VarEntry* var = FindVar(id, scope);
+	if(var == NULL)				FatalM("Variable not defined!", Line);
+	const char* format = "	mov		%s,	%%rax\n";
+	int charCount = strlen(format) + strlen(var->value) + 1;
+	char* str = malloc(charCount * sizeof(char));
+	snprintf(str, charCount, format, var->value);
+	return str;
+}
+
 static const char* GenUnary(ASTNode* node){
 	if(node->lhs == NULL)	FatalM("Expected expression after unary operator!", Line);
-	const char* instr;
+	const char* instr = NULL;
 	switch(node->op){
 		case A_Negate:				instr = "	neg		%rax\n";	break;
 		case A_BitwiseComplement:	instr = "	not		%rax\n";	break;
@@ -46,7 +59,7 @@ static const char* GenLTRBinary(ASTNode* node){
 	if(node->rhs == NULL)	FatalM("Expected factor after binary operator!", Line);
 	const char* pushInstr = "	push	%rax\n";
 	const char* popInstr = "	pop		%rcx\n";
-	const char* instr;
+	const char* instr = NULL;
 	switch(node->op){
 		case A_Multiply:			instr = "	imul	%rcx,	%rax\n";	break;
 		case A_Add:					instr = "	addq	%rcx,	%rax\n";	break;
@@ -81,7 +94,7 @@ static const char* GenRTLBinary(ASTNode* node){
 	if(node->rhs == NULL)	FatalM("Expected factor after binary operator!", Line);
 	const char* pushInstr	= "	push	%rax\n";
 	const char* popInstr	= "	pop		%rcx\n";
-	const char* instr;
+	const char* instr = NULL;
 	switch(node->op){
 		case A_Subtract:	instr = "	subq	%rcx,	%rax\n";	break;
 		case A_LeftShift:	instr = "	shl		%rcx,	%rax\n";	break;
@@ -125,7 +138,7 @@ static const char* GenRTLBinary(ASTNode* node){
 static const char* GenShortCircuiting(ASTNode* node){
 	if(node->lhs == NULL)	FatalM("Expected factor before binary operator!", Line);
 	if(node->rhs == NULL)	FatalM("Expected factor after binary operator!", Line);
-	const char* format;
+	const char* format = NULL;
 	switch(node->op){
 		case A_LogicalAnd:
 			format =
@@ -166,10 +179,26 @@ static const char* GenShortCircuiting(ASTNode* node){
 	return str;
 }
 
+static const char* GenAssignment(ASTNode* node){
+	if(node == NULL)			FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
+	if(node->op != A_Assign)	FatalM("Expected assignment in expression! (In gen.h)", __LINE__);
+	const char* id = node->lhs->value.strVal;
+	const char* rhs = GenExpressionAsm(node->rhs);
+	VarEntry* var = FindVar(id, scope);
+	if(var == NULL)				FatalM("Variable not defined!", Line);
+	const char* format = "%s	mov		%%rax,	%s\n";
+	int charCount = strlen(format) + strlen(rhs) + strlen(var->value);
+	char* str = malloc(charCount * sizeof(char));
+	snprintf(str, charCount, format, rhs, var->value);
+	return str;
+}
+
 static const char* GenExpressionAsm(ASTNode* node){
 	if(node == NULL)					FatalM("Expected an AST node, got NULL instead.", Line);
 	switch(node->op){
 		case A_LitInt:				return GenLitInt(node);
+		case A_VarRef:				return GenVarRef(node);
+		case A_Assign:				return GenAssignment(node);
 		// Unary Operators
 		case A_Negate:
 		case A_BitwiseComplement:
@@ -222,9 +251,28 @@ static const char* GenReturnStatementAsm(ASTNode* node){
 	return str;
 }
 
+static const char* GenDeclaration(ASTNode* node){
+	if(node == NULL)									FatalM("Expected an AST Node, got NULL instead", Line);
+	if(node->op != A_Declare)							FatalM("Expected declaration!", Line);
+	if(FindLocalVar(node->value.strVal, scope) != NULL)	FatalM("Local variable redeclaration!", Line);
+	char* varLoc = malloc(10 * sizeof(char));
+	snprintf(varLoc, 10, "%d(%%rbp)", stackIndex[scope] -= 8);
+	char* expr = "";
+	if(node->lhs != NULL){
+		const char* rhs = GenExpressionAsm(node->lhs);
+		const char* format = "%s	mov		%%rax,	%s\n";
+		int len = (strlen(format) + strlen(rhs) + 4);
+		expr = malloc(len * sizeof(char));
+		snprintf(expr, len, format, rhs, varLoc);
+	}
+	InsertVar(node->value.strVal, varLoc, scope);
+	return expr;
+}
+
 static const char* GenStatementAsm(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op == A_Return)	return GenReturnStatementAsm(node);
+	if(node->op == A_Declare)	return GenDeclaration(node);
 	return GenExpressionAsm(node);
 }
 
@@ -237,20 +285,33 @@ static const char* GenFunctionAsm(ASTNode* node){
 		"%s:\n"						// Identifier
 		"	push	%%rbp\n"
 		"	mov		%%rsp,	%%rbp\n"
+		"%s"						// Stack Allocation ASM
 		"%s"						// Statement ASM
 	;
 	const char* statementAsm = node->list->count ? GenerateAsmFromList(node->list) : NULL;
 	if(statementAsm == NULL){
 		FatalM("Implicit returns not yet handled. In gen.h", __LINE__);
 	}
+	int stackSize = GetLocalVarCount(scope) * -8;
+	char* stackAlloc = malloc(1 * sizeof(char));
+	*stackAlloc = '\0';
+	if(stackSize){
+		free(stackAlloc);
+		const char* format = "	sub		$%d,		%%rsp\n";
+		int len = (strlen(format) + 6);
+		stackAlloc = malloc(len * sizeof(char));
+		snprintf(stackAlloc, len, format, stackSize);
+	}
 	int charCount =
 		(2 * strlen(node->value.strVal))	// identifier x2
 		+ strlen(statementAsm)				// Inner ASM
 		+ strlen(format)					// format
+		+ strlen(stackAlloc)				// Stack Allocation ASM
 		+ 1									// \0
 	;
 	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, format, node->value.strVal, node->value.strVal, statementAsm);
+	snprintf(str, charCount, format, node->value.strVal, node->value.strVal, stackAlloc, statementAsm);
+	free(stackAlloc);
 	return str;
 }
 
@@ -266,7 +327,7 @@ const char* GenerateAsmFromList(ASTNodeList* list){
 	int i = 1;
 	while(i < list->count){
 		generated = GenStatementAsm(list->nodes[i]);
-		buffer = realloc(buffer, strlen(buffer) + strlen(generated));
+		buffer = realloc(buffer, strlen(buffer) + strlen(generated) + 1);
 		strcat(buffer, generated);
 		i++;
 	}

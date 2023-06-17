@@ -1,9 +1,11 @@
 # <comment>				::= "//" { <letter> | <digit> }
 <program>				::= <function>
 <function>				::= "int" "main" "(" ")" "{" { <statement> } "}"
-<statement>				::= <return_statement> | <expression> ';'
+<statement>				::= <return_statement> | <expression> ';' | <declaration>
+<declaration>			::= "int" <id> [ '=' <expression> ] ';'
 <return_statement>		::= "return" <int> ';'
-<expression>			::= <logical_or_expr>
+<expression>			::= <assignment_expr>
+<assignment_expr>		::= <id> '=' <expression>
 <logical_or_expr>		::= <logical_and_expr> { "||" <logical_and_expr> }
 <logical_and_expr>		::= <bitwise_or_expr> { "&&" <bitwise_or_expr> }
 <bitwise_or_expr>		::= <bitwise_xor_expr> { '|' <bitwise_xor_expr> }
@@ -14,7 +16,7 @@
 <bit_shift_expr>		::= <additive_expr> { ( "<<" | ">>" ) <additive_expr> }
 <additive_expr>			::= <term> { ( '+' | '-' ) <term> }
 <term>					::= <factor> { ( '*' | '/' | '%' ) <factor> }
-<factor>				::= <unary_op> <factor> | <int>
+<factor>				::= <unary_op> <factor> | <id> | <int>
 
 <unary_op>				::= '~' | '!' | '-'
 

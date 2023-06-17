@@ -8,8 +8,8 @@
 #include "types.h"
 #include "lex.h"
 #include "parse.h"
-#include "gen.h"
 #include "varTable.h"
+#include "gen.h"
 
 #ifdef extern_main
 	#undef extern_main

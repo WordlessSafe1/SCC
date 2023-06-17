@@ -11,11 +11,12 @@ ASTNode* ParseFactor(){
 	Token* tok = GetToken();
 	ASTNode* ret;
 	switch(tok->type){
-		case T_LitInt:		return MakeASTLeaf(A_LitInt, tok->value.intVal, NULL);
-		case T_Minus:		return MakeASTUnary(A_Negate,				ParseFactor(),	0,	NULL);
-		case T_Bang:		return MakeASTUnary(A_LogicalNot,			ParseFactor(),	0,	NULL);
-		case T_Tilde:		return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	0,	NULL);
-		case T_Semicolon:	ungetc(';', fptr); return MakeASTLeaf(A_Undefined, 0, NULL);
+		case T_LitInt:		return MakeASTLeaf(A_LitInt, FlexInt(tok->value.intVal));
+		case T_Minus:		return MakeASTUnary(A_Negate,				ParseFactor(),	FlexNULL());
+		case T_Bang:		return MakeASTUnary(A_LogicalNot,			ParseFactor(),	FlexNULL());
+		case T_Tilde:		return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	FlexNULL());
+		case T_Identifier:	return MakeASTLeaf(A_VarRef, FlexStr(tok->value.strVal));
+		case T_Semicolon:	ungetc(';', fptr); return MakeASTLeaf(A_Undefined, FlexNULL());
 		default:			FatalM("Invalid expression!", Line);
 	}
 }
@@ -27,13 +28,13 @@ ASTNode* ParseTerm(){
 		GetToken();
 		switch (tok->type){
 			case T_Asterisk:
-				lhs = MakeASTNode(A_Multiply,	lhs,	ParseFactor(),	0,	NULL);
+				lhs = MakeASTNode(A_Multiply,	lhs,	ParseFactor(),	FlexNULL());
 				break;
 			case T_Divide:
-				lhs = MakeASTNode(A_Divide,	lhs,	ParseFactor(),	0,	NULL);
+				lhs = MakeASTNode(A_Divide,	lhs,	ParseFactor(),	FlexNULL());
 				break;
 			case T_Percent:
-				lhs = MakeASTNode(A_Modulo,	lhs,	ParseFactor(),	0,	NULL);
+				lhs = MakeASTNode(A_Modulo,	lhs,	ParseFactor(),	FlexNULL());
 				break;
 		}
 		tok = PeekToken();
@@ -48,10 +49,10 @@ ASTNode* ParseAdditiveExpression(){
 		GetToken();
 		switch (tok->type){
 			case T_Plus:
-				lhs = MakeASTNode(A_Add,		lhs,	ParseTerm(),	0,	NULL);
+				lhs = MakeASTNode(A_Add,		lhs,	ParseTerm(),	FlexNULL());
 				break;
 			case T_Minus:
-				lhs = MakeASTNode(A_Subtract,	lhs,	ParseTerm(),	0,	NULL);
+				lhs = MakeASTNode(A_Subtract,	lhs,	ParseTerm(),	FlexNULL());
 				break;
 		}
 		tok = PeekToken();
@@ -65,8 +66,8 @@ ASTNode* ParseBitShiftExpression(){
 	while(tok->type == T_DoubleLess || tok->type == T_DoubleGreater){
 		GetToken();
 		switch(tok->type){
-			case T_DoubleLess:		lhs = MakeASTNode(A_LeftShift,	lhs,	ParseAdditiveExpression(),	0,	NULL);	break;
-			case T_DoubleGreater:	lhs = MakeASTNode(A_RightShift,	lhs,	ParseAdditiveExpression(),	0,	NULL);	break;
+			case T_DoubleLess:		lhs = MakeASTNode(A_LeftShift,	lhs,	ParseAdditiveExpression(),	FlexNULL());	break;
+			case T_DoubleGreater:	lhs = MakeASTNode(A_RightShift,	lhs,	ParseAdditiveExpression(),	FlexNULL());	break;
 		}
 		tok = PeekToken();
 	}
@@ -79,10 +80,10 @@ ASTNode* ParseRelationalExpression(){
 	while(tok->type == T_Less || tok->type == T_Greater || tok->type == T_LessEqual || tok->type == T_GreaterEqual){
 		GetToken();
 		switch(tok->type){
-			case T_Less:			lhs = MakeASTNode(A_LessThan,		lhs,	ParseBitShiftExpression(),	0,	NULL);	break;
-			case T_Greater:			lhs = MakeASTNode(A_GreaterThan,	lhs,	ParseBitShiftExpression(),	0,	NULL);	break;
-			case T_LessEqual:		lhs = MakeASTNode(A_LessOrEqual,	lhs,	ParseBitShiftExpression(),	0,	NULL);	break;
-			case T_GreaterEqual:	lhs = MakeASTNode(A_GreaterOrEqual,	lhs,	ParseBitShiftExpression(),	0,	NULL);	break;
+			case T_Less:			lhs = MakeASTNode(A_LessThan,		lhs,	ParseBitShiftExpression(),	FlexNULL());	break;
+			case T_Greater:			lhs = MakeASTNode(A_GreaterThan,	lhs,	ParseBitShiftExpression(),	FlexNULL());	break;
+			case T_LessEqual:		lhs = MakeASTNode(A_LessOrEqual,	lhs,	ParseBitShiftExpression(),	FlexNULL());	break;
+			case T_GreaterEqual:	lhs = MakeASTNode(A_GreaterOrEqual,	lhs,	ParseBitShiftExpression(),	FlexNULL());	break;
 		}
 		tok = PeekToken();
 	}
@@ -95,8 +96,8 @@ ASTNode* ParseEqualityExpression(){
 	while(tok->type == T_DoubleEqual || tok->type == T_BangEqual){
 		GetToken();
 		switch(tok->type){
-			case T_DoubleEqual:		lhs = MakeASTNode(A_EqualTo,	lhs,	ParseRelationalExpression(),	0,	NULL);	break;
-			case T_BangEqual:		lhs = MakeASTNode(A_NotEqualTo,	lhs,	ParseRelationalExpression(),	0,	NULL);	break;
+			case T_DoubleEqual:		lhs = MakeASTNode(A_EqualTo,	lhs,	ParseRelationalExpression(),	FlexNULL());	break;
+			case T_BangEqual:		lhs = MakeASTNode(A_NotEqualTo,	lhs,	ParseRelationalExpression(),	FlexNULL());	break;
 		}
 		tok = PeekToken();
 	}
@@ -108,7 +109,7 @@ ASTNode* ParseBitwiseAndExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_Ampersand){
 		GetToken();
-		lhs = MakeASTNode(A_BitwiseAnd,	lhs,	ParseEqualityExpression(),	0,	NULL);
+		lhs = MakeASTNode(A_BitwiseAnd,	lhs,	ParseEqualityExpression(),	FlexNULL());
 		tok = PeekToken();
 	}
 	return lhs;
@@ -119,7 +120,7 @@ ASTNode* ParseBitwiseXorExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_Caret){
 		GetToken();
-		lhs = MakeASTNode(A_BitwiseXor,	lhs,	ParseBitwiseAndExpression(),	0,	NULL);
+		lhs = MakeASTNode(A_BitwiseXor,	lhs,	ParseBitwiseAndExpression(),	FlexNULL());
 		tok = PeekToken();
 	}
 	return lhs;
@@ -130,7 +131,7 @@ ASTNode* ParseBitwiseOrExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_Pipe){
 		GetToken();
-		lhs = MakeASTNode(A_BitwiseOr,	lhs,	ParseBitwiseXorExpression(),	0,	NULL);
+		lhs = MakeASTNode(A_BitwiseOr,	lhs,	ParseBitwiseXorExpression(),	FlexNULL());
 		tok = PeekToken();
 	}
 	return lhs;
@@ -141,7 +142,7 @@ ASTNode* ParseLogicalAndExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_DoubleAmpersand){
 		GetToken();
-		lhs = MakeASTNode(A_LogicalAnd,	lhs,	ParseBitwiseOrExpression(),	0,	NULL);
+		lhs = MakeASTNode(A_LogicalAnd,	lhs,	ParseBitwiseOrExpression(),	FlexNULL());
 		tok = PeekToken();
 	}
 	return lhs;
@@ -152,26 +153,55 @@ ASTNode* ParseLogicalOrExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_DoublePipe){
 		GetToken();
-		lhs = MakeASTNode(A_LogicalOr,	lhs,	ParseBitwiseOrExpression(),	0,	NULL);
+		lhs = MakeASTNode(A_LogicalOr,	lhs,	ParseBitwiseOrExpression(),	FlexNULL());
 		tok = PeekToken();
 	}
 	return lhs;
 }
 
+ASTNode* ParseAssignmentExpression(){
+	ASTNode* lhs = ParseLogicalOrExpression();
+	if(lhs == NULL)							FatalM("Got NULL instead of expression! (In parse.h)", __LINE__);
+	if(lhs->op != A_VarRef || PeekToken()->type != T_Equal)
+		return lhs;
+	if(GetToken()->type != T_Equal)			FatalM("Expected '=' in assignment!", Line);
+	ASTNode* rhs = ParseExpression();
+	if(lhs == NULL)							FatalM("Expected expression!", Line);
+	return MakeASTNode(A_Assign, lhs, rhs, FlexNULL());
+}
+
 ASTNode* ParseExpression(){
-	return ParseLogicalOrExpression();
+	return ParseAssignmentExpression();
 }
 
 ASTNode* ParseReturnStatement(){
 	if(GetToken()->type != T_Return)		FatalM("Invalid statement; Expected return.", Line);
 	ASTNode* expr = ParseExpression();
 	if(GetToken()->type != T_Semicolon)		FatalM("Invalid statement; Expected semicolon.", Line);
-	return MakeASTUnary(A_Return, expr, 0, NULL);
+	return MakeASTUnary(A_Return, expr, FlexNULL());
+}
+
+ASTNode* ParseDeclaration(){
+	Token* tok = GetToken();
+	if(tok->type != T_Type)			FatalM("Expected typename!", Line);
+	const char* type = tok->value.strVal;
+	tok = GetToken();
+	if(tok->type != T_Identifier)	FatalM("Expected identifier!", Line);
+	const char* id = tok->value.strVal;
+	if(PeekToken()->type != T_Equal)	return MakeASTNodeExtended(A_Declare, NULL, NULL, FlexStr(id), FlexStr(type));
+	GetToken();
+	ASTNode* expr = ParseExpression();
+	return MakeASTNodeExtended(A_Declare, expr, NULL, FlexStr(id), FlexStr(type));
 }
 
 ASTNode* ParseStatement(){
-	if(PeekToken()->type == T_Return)		return ParseReturnStatement();
-	ASTNode* expr = ParseExpression();
+	Token* tok = PeekToken();
+	if(tok->type == T_Return)		return ParseReturnStatement();
+	ASTNode* expr = NULL;
+	switch(tok->type){
+		case T_Type:		expr = ParseDeclaration();	break;
+		default:			expr = ParseExpression();	break;
+	}
 	if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon!", Line);
 	return expr;
 }
@@ -192,7 +222,7 @@ ASTNode* ParseFunction(){
 		AddNodeToASTList(list, ParseStatement());
 	// ASTNode* stmt = ParseStatement();
 	if(GetToken()->type != T_CloseBrace)	FatalM("Invalid function declaration; Expected close brace '}'.", Line);
-	return MakeASTList(A_Function, list, 0, idStr);
+	return MakeASTList(A_Function, list, FlexStr(idStr));
 	// return MakeASTUnary(A_Function, stmt, 0, identifier->value.strVal);
 }
 

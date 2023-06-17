@@ -35,6 +35,7 @@ static Token* Tokenize(const char* str){
 	else if(streq(str, "||"))		token->type = T_DoublePipe;
 	else if(streq(str, "<<"))		token->type = T_DoubleLess;
 	else if(streq(str, ">>"))		token->type = T_DoubleGreater;
+	else if(streq(str, "="))		token->type = T_Equal;
 	else if(isdigit(str[0])){
 		token->type = T_LitInt;
 		token->value.intVal = atoi(str);
