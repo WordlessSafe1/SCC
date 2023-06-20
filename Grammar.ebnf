@@ -7,7 +7,8 @@
 <declaration>			::= "int" <id> [ '=' <expression> ] ';'
 <return_statement>		::= "return" <int> ';'
 <expression>			::= <assignment_expr>
-<assignment_expr>		::= <id> '=' <expression>
+<assignment_expr>		::= <id> '=' <expression> | <conditional_expr>
+<conditional_expr>		::= <logical_or_expr> [ '?' [ <expression> ] ':' <conditional_expr> ]
 <logical_or_expr>		::= <logical_and_expr> { "||" <logical_and_expr> }
 <logical_and_expr>		::= <bitwise_or_expr> { "&&" <bitwise_or_expr> }
 <bitwise_or_expr>		::= <bitwise_xor_expr> { '|' <bitwise_xor_expr> }

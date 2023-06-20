@@ -35,6 +35,8 @@ enum eTokenCategory {
 	T_DoubleLess,
 	T_DoubleGreater,
 	T_Equal,
+	T_Question,
+	T_Colon,
 };
 typedef enum eTokenCategory TokenType;
 
@@ -68,6 +70,7 @@ enum eNodeType {
 	A_VarRef,
 	A_Assign,
 	A_Block,
+	A_Ternary,
 };
 typedef enum eNodeType NodeType;
 
@@ -86,6 +89,7 @@ typedef struct token Token;
 struct ast_node {
 	NodeType op;
 	struct ast_node *lhs;
+	struct ast_node *mid;
 	struct ast_node *rhs;
 	struct ast_node_list *list;
 	FlexibleValue value;
@@ -116,36 +120,42 @@ ASTNodeList* AddNodeToASTList(ASTNodeList* list, ASTNode* node){
 	return list;
 }
 
-ASTNode* MakeASTNodeExtended(int op, ASTNode* lhs, ASTNode* rhs, FlexibleValue value, FlexibleValue secondValue){
+ASTNode* MakeASTNodeExtended(int op, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value, FlexibleValue secondValue){
 	ASTNode* node = malloc(sizeof(ASTNode));
 	if(node == NULL)
 		FatalM("Failed to malloc in MakeASTNode()", Line);
 	node->op = op;
 	node->lhs = lhs;
+	node->mid = mid;
 	node->rhs = rhs;
 	node->value = value;
 	node->secondValue = secondValue;
 	return node;
 }
 
-ASTNode* MakeASTNode(int op, ASTNode* lhs, ASTNode* rhs, FlexibleValue value){
+ASTNode* MakeASTNode (int op, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value){
 	ASTNode* node = malloc(sizeof(ASTNode));
 	if(node == NULL)
 		FatalM("Failed to malloc in MakeASTNode()", Line);
 	node->op = op;
 	node->lhs = lhs;
+	node->mid = mid;
 	node->rhs = rhs;
 	node->value = value;
 	node->secondValue.strVal = NULL;
 	return node;
 }
 
+ASTNode* MakeASTBinary(int op, ASTNode* lhs, ASTNode* rhs, FlexibleValue value){
+	return MakeASTNode(op, lhs, NULL, rhs, value);
+}
+
 ASTNode* MakeASTLeaf(int op, FlexibleValue value){
-	return MakeASTNode(op, NULL, NULL, value);
+	return MakeASTBinary(op, NULL, NULL, value);
 }
 
 ASTNode* MakeASTUnary(int op, ASTNode* lhs, FlexibleValue value){
-	return MakeASTNode(op, lhs, NULL, value);
+	return MakeASTBinary(op, lhs, NULL, value);
 }
 
 ASTNode* MakeASTList(int op, ASTNodeList* list, FlexibleValue value){

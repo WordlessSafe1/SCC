@@ -36,6 +36,8 @@ static Token* Tokenize(const char* str){
 	else if(streq(str, "<<"))		token->type = T_DoubleLess;
 	else if(streq(str, ">>"))		token->type = T_DoubleGreater;
 	else if(streq(str, "="))		token->type = T_Equal;
+	else if(streq(str, "?"))		token->type = T_Question;
+	else if(streq(str, ":"))		token->type = T_Colon;
 	else if(isdigit(str[0])){
 		token->type = T_LitInt;
 		token->value.intVal = atoi(str);
@@ -65,7 +67,7 @@ char* ShiftToken(){
 			if(i)	break;
 			else	continue;
 		}
-		if(strchr("(){};-~!+*/%%<>=&^|", c)){
+		if(strchr("(){};-~!+*/%%<>=&^|?:", c)){
 			if(i){
 				ungetc(c, fptr);
 				break;

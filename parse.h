@@ -29,13 +29,13 @@ ASTNode* ParseTerm(){
 		GetToken();
 		switch (tok->type){
 			case T_Asterisk:
-				lhs = MakeASTNode(A_Multiply,	lhs,	ParseFactor(),	FlexNULL());
+				lhs = MakeASTBinary(A_Multiply,	lhs,	ParseFactor(),	FlexNULL());
 				break;
 			case T_Divide:
-				lhs = MakeASTNode(A_Divide,	lhs,	ParseFactor(),	FlexNULL());
+				lhs = MakeASTBinary(A_Divide,	lhs,	ParseFactor(),	FlexNULL());
 				break;
 			case T_Percent:
-				lhs = MakeASTNode(A_Modulo,	lhs,	ParseFactor(),	FlexNULL());
+				lhs = MakeASTBinary(A_Modulo,	lhs,	ParseFactor(),	FlexNULL());
 				break;
 		}
 		tok = PeekToken();
@@ -50,10 +50,10 @@ ASTNode* ParseAdditiveExpression(){
 		GetToken();
 		switch (tok->type){
 			case T_Plus:
-				lhs = MakeASTNode(A_Add,		lhs,	ParseTerm(),	FlexNULL());
+				lhs = MakeASTBinary(A_Add,		lhs,	ParseTerm(),	FlexNULL());
 				break;
 			case T_Minus:
-				lhs = MakeASTNode(A_Subtract,	lhs,	ParseTerm(),	FlexNULL());
+				lhs = MakeASTBinary(A_Subtract,	lhs,	ParseTerm(),	FlexNULL());
 				break;
 		}
 		tok = PeekToken();
@@ -67,8 +67,8 @@ ASTNode* ParseBitShiftExpression(){
 	while(tok->type == T_DoubleLess || tok->type == T_DoubleGreater){
 		GetToken();
 		switch(tok->type){
-			case T_DoubleLess:		lhs = MakeASTNode(A_LeftShift,	lhs,	ParseAdditiveExpression(),	FlexNULL());	break;
-			case T_DoubleGreater:	lhs = MakeASTNode(A_RightShift,	lhs,	ParseAdditiveExpression(),	FlexNULL());	break;
+			case T_DoubleLess:		lhs = MakeASTBinary(A_LeftShift,	lhs,	ParseAdditiveExpression(),	FlexNULL());	break;
+			case T_DoubleGreater:	lhs = MakeASTBinary(A_RightShift,	lhs,	ParseAdditiveExpression(),	FlexNULL());	break;
 		}
 		tok = PeekToken();
 	}
@@ -81,10 +81,10 @@ ASTNode* ParseRelationalExpression(){
 	while(tok->type == T_Less || tok->type == T_Greater || tok->type == T_LessEqual || tok->type == T_GreaterEqual){
 		GetToken();
 		switch(tok->type){
-			case T_Less:			lhs = MakeASTNode(A_LessThan,		lhs,	ParseBitShiftExpression(),	FlexNULL());	break;
-			case T_Greater:			lhs = MakeASTNode(A_GreaterThan,	lhs,	ParseBitShiftExpression(),	FlexNULL());	break;
-			case T_LessEqual:		lhs = MakeASTNode(A_LessOrEqual,	lhs,	ParseBitShiftExpression(),	FlexNULL());	break;
-			case T_GreaterEqual:	lhs = MakeASTNode(A_GreaterOrEqual,	lhs,	ParseBitShiftExpression(),	FlexNULL());	break;
+			case T_Less:			lhs = MakeASTBinary(A_LessThan,		lhs,	ParseBitShiftExpression(),	FlexNULL());	break;
+			case T_Greater:			lhs = MakeASTBinary(A_GreaterThan,	lhs,	ParseBitShiftExpression(),	FlexNULL());	break;
+			case T_LessEqual:		lhs = MakeASTBinary(A_LessOrEqual,	lhs,	ParseBitShiftExpression(),	FlexNULL());	break;
+			case T_GreaterEqual:	lhs = MakeASTBinary(A_GreaterOrEqual,	lhs,	ParseBitShiftExpression(),	FlexNULL());	break;
 		}
 		tok = PeekToken();
 	}
@@ -97,8 +97,8 @@ ASTNode* ParseEqualityExpression(){
 	while(tok->type == T_DoubleEqual || tok->type == T_BangEqual){
 		GetToken();
 		switch(tok->type){
-			case T_DoubleEqual:		lhs = MakeASTNode(A_EqualTo,	lhs,	ParseRelationalExpression(),	FlexNULL());	break;
-			case T_BangEqual:		lhs = MakeASTNode(A_NotEqualTo,	lhs,	ParseRelationalExpression(),	FlexNULL());	break;
+			case T_DoubleEqual:		lhs = MakeASTBinary(A_EqualTo,	lhs,	ParseRelationalExpression(),	FlexNULL());	break;
+			case T_BangEqual:		lhs = MakeASTBinary(A_NotEqualTo,	lhs,	ParseRelationalExpression(),	FlexNULL());	break;
 		}
 		tok = PeekToken();
 	}
@@ -110,7 +110,7 @@ ASTNode* ParseBitwiseAndExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_Ampersand){
 		GetToken();
-		lhs = MakeASTNode(A_BitwiseAnd,	lhs,	ParseEqualityExpression(),	FlexNULL());
+		lhs = MakeASTBinary(A_BitwiseAnd,	lhs,	ParseEqualityExpression(),	FlexNULL());
 		tok = PeekToken();
 	}
 	return lhs;
@@ -121,7 +121,7 @@ ASTNode* ParseBitwiseXorExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_Caret){
 		GetToken();
-		lhs = MakeASTNode(A_BitwiseXor,	lhs,	ParseBitwiseAndExpression(),	FlexNULL());
+		lhs = MakeASTBinary(A_BitwiseXor,	lhs,	ParseBitwiseAndExpression(),	FlexNULL());
 		tok = PeekToken();
 	}
 	return lhs;
@@ -132,7 +132,7 @@ ASTNode* ParseBitwiseOrExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_Pipe){
 		GetToken();
-		lhs = MakeASTNode(A_BitwiseOr,	lhs,	ParseBitwiseXorExpression(),	FlexNULL());
+		lhs = MakeASTBinary(A_BitwiseOr,	lhs,	ParseBitwiseXorExpression(),	FlexNULL());
 		tok = PeekToken();
 	}
 	return lhs;
@@ -143,7 +143,7 @@ ASTNode* ParseLogicalAndExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_DoubleAmpersand){
 		GetToken();
-		lhs = MakeASTNode(A_LogicalAnd,	lhs,	ParseBitwiseOrExpression(),	FlexNULL());
+		lhs = MakeASTBinary(A_LogicalAnd,	lhs,	ParseBitwiseOrExpression(),	FlexNULL());
 		tok = PeekToken();
 	}
 	return lhs;
@@ -154,21 +154,31 @@ ASTNode* ParseLogicalOrExpression(){
 	Token* tok = PeekToken();
 	while(tok->type == T_DoublePipe){
 		GetToken();
-		lhs = MakeASTNode(A_LogicalOr,	lhs,	ParseBitwiseOrExpression(),	FlexNULL());
+		lhs = MakeASTBinary(A_LogicalOr,	lhs,	ParseBitwiseOrExpression(),	FlexNULL());
 		tok = PeekToken();
 	}
 	return lhs;
 }
 
+ASTNode* ParseConditionalExpression(){
+	ASTNode* condition = ParseLogicalOrExpression();
+	if(PeekToken()->type != T_Question)		return condition;
+	GetToken();
+	ASTNode* then = PeekToken()->type == T_Colon ? NULL : ParseExpression();
+	if(GetToken()->type != T_Colon)			FatalM("Expected colon ':' in conditional expression!", Line);
+	ASTNode* otherwise = ParseConditionalExpression();
+	return MakeASTNode(A_Ternary, condition, then, otherwise, FlexNULL());
+}
+
 ASTNode* ParseAssignmentExpression(){
-	ASTNode* lhs = ParseLogicalOrExpression();
+	ASTNode* lhs = ParseConditionalExpression();
 	if(lhs == NULL)							FatalM("Got NULL instead of expression! (In parse.h)", __LINE__);
 	if(lhs->op != A_VarRef || PeekToken()->type != T_Equal)
 		return lhs;
 	if(GetToken()->type != T_Equal)			FatalM("Expected '=' in assignment!", Line);
 	ASTNode* rhs = ParseExpression();
 	if(lhs == NULL)							FatalM("Expected expression!", Line);
-	return MakeASTNode(A_Assign, lhs, rhs, FlexNULL());
+	return MakeASTBinary(A_Assign, lhs, rhs, FlexNULL());
 }
 
 ASTNode* ParseExpression(){
@@ -189,10 +199,10 @@ ASTNode* ParseDeclaration(){
 	tok = GetToken();
 	if(tok->type != T_Identifier)	FatalM("Expected identifier!", Line);
 	const char* id = tok->value.strVal;
-	if(PeekToken()->type != T_Equal)	return MakeASTNodeExtended(A_Declare, NULL, NULL, FlexStr(id), FlexStr(type));
+	if(PeekToken()->type != T_Equal)	return MakeASTNodeExtended(A_Declare, NULL, NULL, NULL, FlexStr(id), FlexStr(type));
 	GetToken();
 	ASTNode* expr = ParseExpression();
-	return MakeASTNodeExtended(A_Declare, expr, NULL, FlexStr(id), FlexStr(type));
+	return MakeASTNodeExtended(A_Declare, expr, NULL, NULL, FlexStr(id), FlexStr(type));
 }
 
 ASTNode* ParseStatement(){

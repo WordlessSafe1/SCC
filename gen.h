@@ -179,6 +179,44 @@ static const char* GenShortCircuiting(ASTNode* node){
 	return str;
 }
 
+static const char* GenTernary(ASTNode* node){
+	if(node->lhs == NULL)	FatalM("Expected expression before ternary operator!", Line);
+	if(node->rhs == NULL)	FatalM("Expected expression after ternary operator!", Line);
+	const char* format;
+	if(node->mid == NULL){
+		format = 
+			"%s"
+			"	cmp		$0,		%%rax\n"
+			"	jne		%d1f\n"
+			"%s"
+			"%d1:\n"
+		;
+	}
+	else{
+		format =
+			"%s"
+			"	cmp		$0,		%%rax\n"
+			"	je		%d1f\n"
+			"%s"
+			"	jmp		%d2f\n"
+			"%d1:\n"
+			"%s"
+			"%d2:\n"
+		;
+	}
+	const char* rhs = GenExpressionAsm(node->rhs);
+	const char* mid = node->mid == NULL ? "" : GenExpressionAsm(node->mid);
+	const char* lhs = GenExpressionAsm(node->lhs);
+	int charCount = strlen(format) + strlen(lhs) + strlen(mid) + strlen(rhs) + 1;
+	char* str = malloc(charCount * sizeof(char));
+	labelPref++;
+	if(node->mid != NULL)
+		snprintf(str, charCount, format, lhs, labelPref, mid, labelPref, labelPref, rhs, labelPref);
+	else
+		snprintf(str, charCount, format, lhs, labelPref, rhs, labelPref);
+	return str;
+}
+
 static const char* GenAssignment(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
 	if(node->op != A_Assign)	FatalM("Expected assignment in expression! (In gen.h)", __LINE__);
@@ -199,6 +237,7 @@ static const char* GenExpressionAsm(ASTNode* node){
 		case A_LitInt:				return GenLitInt(node);
 		case A_VarRef:				return GenVarRef(node);
 		case A_Assign:				return GenAssignment(node);
+		case A_Ternary:				return GenTernary(node);
 		// Unary Operators
 		case A_Negate:
 		case A_BitwiseComplement:
