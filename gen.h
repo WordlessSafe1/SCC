@@ -261,7 +261,7 @@ static const char* GenDeclaration(ASTNode* node){
 	if(node->lhs != NULL){
 		const char* rhs = GenExpressionAsm(node->lhs);
 		const char* format = "%s	mov		%%rax,	%s\n";
-		int len = (strlen(format) + strlen(rhs) + 4);
+		int len = (strlen(format) + strlen(rhs) + strlen(varLoc) + 4);
 		expr = malloc(len * sizeof(char));
 		snprintf(expr, len, format, rhs, varLoc);
 	}
@@ -269,10 +269,40 @@ static const char* GenDeclaration(ASTNode* node){
 	return expr;
 }
 
+static const char* GenBlockAsm(ASTNode* node){
+	if(node == NULL)				FatalM("Expected an AST node, got NULL instead.", Line);
+	if(node->op != A_Block)			FatalM("Expected function at top level statement!", Line);
+	if(!node->list)					FatalM("Expected an ASTNodeList* member 'list'! (In gen.h)", __LINE__);
+	if(!node->list->count)			return "";
+	EnterScope();
+	const char* statementAsm = GenerateAsmFromList(node->list);
+	int stackSize = GetLocalVarCount(scope) * 8;
+	char* stackAlloc = malloc(1 * sizeof(char));
+	*stackAlloc = '\0';
+	if(stackSize){
+		free(stackAlloc);
+		const char* format = "	sub		$%d,		%%rsp\n";
+		int len = (strlen(format) + 6);
+		stackAlloc = malloc(len * sizeof(char));
+		snprintf(stackAlloc, len, format, stackSize);
+	}
+	int charCount =
+		+ strlen(statementAsm)	// Inner ASM
+		+ strlen(stackAlloc)	// Stack Allocation ASM
+		+ 1						// '\0'
+	;
+	char* str = malloc(charCount * sizeof(char));
+	snprintf(str, charCount, "%s%s", stackAlloc, statementAsm);
+	free(stackAlloc);
+	ExitScope();
+	return str;
+}
+
 static const char* GenStatementAsm(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op == A_Return)	return GenReturnStatementAsm(node);
 	if(node->op == A_Declare)	return GenDeclaration(node);
+	if(node->op == A_Block)		return GenBlockAsm(node);
 	return GenExpressionAsm(node);
 }
 
@@ -285,33 +315,20 @@ static const char* GenFunctionAsm(ASTNode* node){
 		"%s:\n"						// Identifier
 		"	push	%%rbp\n"
 		"	mov		%%rsp,	%%rbp\n"
-		"%s"						// Stack Allocation ASM
 		"%s"						// Statement ASM
 	;
-	const char* statementAsm = node->list->count ? GenerateAsmFromList(node->list) : NULL;
+	const char* statementAsm = GenBlockAsm(node->lhs);
 	if(statementAsm == NULL){
 		FatalM("Implicit returns not yet handled. In gen.h", __LINE__);
-	}
-	int stackSize = GetLocalVarCount(scope) * -8;
-	char* stackAlloc = malloc(1 * sizeof(char));
-	*stackAlloc = '\0';
-	if(stackSize){
-		free(stackAlloc);
-		const char* format = "	sub		$%d,		%%rsp\n";
-		int len = (strlen(format) + 6);
-		stackAlloc = malloc(len * sizeof(char));
-		snprintf(stackAlloc, len, format, stackSize);
 	}
 	int charCount =
 		(2 * strlen(node->value.strVal))	// identifier x2
 		+ strlen(statementAsm)				// Inner ASM
 		+ strlen(format)					// format
-		+ strlen(stackAlloc)				// Stack Allocation ASM
 		+ 1									// \0
 	;
 	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, format, node->value.strVal, node->value.strVal, stackAlloc, statementAsm);
-	free(stackAlloc);
+	snprintf(str, charCount, format, node->value.strVal, node->value.strVal, statementAsm);
 	return str;
 }
 

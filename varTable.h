@@ -45,6 +45,7 @@ static void CreateScope(int scope){
 		maxScope += 5;
 	}
 	hashArray[scope] = malloc(sizeof(VarList*) * CAPACITY);
+	stackIndex[scope] = scope ? stackIndex[scope - 1] : 0;
 	for(int i = 0; i < CAPACITY; i++)
 		hashArray[scope][i] = NULL;
 }
@@ -145,7 +146,7 @@ int EnterScope(){
 }
 
 int ExitScope(){
-	DestroyVarTable(--scope);
+	DestroyVarTable(scope--);
 	stackIndex[scope] = 0;
 	return scope;
 }

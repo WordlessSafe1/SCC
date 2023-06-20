@@ -67,6 +67,7 @@ enum eNodeType {
 	A_Declare,
 	A_VarRef,
 	A_Assign,
+	A_Block,
 };
 typedef enum eNodeType NodeType;
 

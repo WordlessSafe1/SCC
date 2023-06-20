@@ -1,7 +1,9 @@
 # <comment>				::= "//" { <letter> | <digit> }
 <program>				::= <function>
-<function>				::= "int" "main" "(" ")" "{" { <statement> } "}"
-<statement>				::= <return_statement> | <expression> ';' | <declaration>
+<function>				::= "int" "main" "(" ")" <block>
+<block_item>			::= <statement> | <declaration>
+<block>					::= '{' [ <block_item> ] '}'
+<statement>				::= <return_statement> | <expression> ';' | <block>
 <declaration>			::= "int" <id> [ '=' <expression> ] ';'
 <return_statement>		::= "return" <int> ';'
 <expression>			::= <assignment_expr>

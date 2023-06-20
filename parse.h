@@ -5,6 +5,7 @@
 #include "defs.h"
 
 ASTNode* ParseExpression();
+ASTNode* ParseBlock();
 
 
 ASTNode* ParseFactor(){
@@ -200,29 +201,34 @@ ASTNode* ParseStatement(){
 	ASTNode* expr = NULL;
 	switch(tok->type){
 		case T_Type:		expr = ParseDeclaration();	break;
+		case T_OpenBrace:	return ParseBlock();
 		default:			expr = ParseExpression();	break;
 	}
 	if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon!", Line);
 	return expr;
 }
 
+ASTNode* ParseBlock(){
+	if(GetToken()->type != T_OpenBrace)		FatalM("Invalid block declaration; Expected open brace '{'.", Line);
+	ASTNodeList* list = MakeASTNodeList();
+	while(PeekToken()->type != T_CloseBrace)
+		AddNodeToASTList(list, ParseStatement());
+	if(GetToken()->type != T_CloseBrace)	FatalM("Invalid block declaration; Expected close brace '}'.", Line);
+	return MakeASTList(A_Block, list, FlexNULL());
+}
+
 ASTNode* ParseFunction(){
 	if(GetToken()->type != T_Type)			FatalM("Invalid function declaration; Expected typename.", Line);
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)			FatalM("Invalid function declaration; Expected identifier.", Line);
-	Token* identifier = tok;
+	int idLen = strlen(tok->value.strVal) + 1;
+	char* idStr = malloc(idLen * sizeof(char));
+	strncpy(idStr,tok->value.strVal, idLen);
 	if(GetToken()->type != T_OpenParen)		FatalM("Invalid function declaration; Expected open parenthesis '('.", Line);
 	if(GetToken()->type != T_CloseParen)	FatalM("Invalid function declaration; Expected close parenthesis ')'.", Line);
-	if(GetToken()->type != T_OpenBrace)		FatalM("Invalid function declaration; Expected open brace '{'.", Line);
-	int idLen = strlen(identifier->value.strVal) + 1;
-	char* idStr = malloc(idLen * sizeof(char));
-	strncpy(idStr,identifier->value.strVal, idLen);
-	ASTNodeList* list = MakeASTNodeList();
-	while(PeekToken()->type != T_CloseBrace)
-		AddNodeToASTList(list, ParseStatement());
-	// ASTNode* stmt = ParseStatement();
-	if(GetToken()->type != T_CloseBrace)	FatalM("Invalid function declaration; Expected close brace '}'.", Line);
-	return MakeASTList(A_Function, list, FlexStr(idStr));
+	if(PeekToken()->type != T_OpenBrace)	FatalM("Invalid function declaration; Expected open brace '{'.", Line);
+	ASTNode* block = ParseBlock();
+	return MakeASTUnary(A_Function, block, FlexStr(idStr));
 	// return MakeASTUnary(A_Function, stmt, 0, identifier->value.strVal);
 }
 
