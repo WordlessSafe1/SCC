@@ -6,6 +6,7 @@
 static int labelPref = 9;
 
 static const char* GenExpressionAsm(ASTNode* node);
+static const char* GenStatementAsm(ASTNode* node);
 const char* GenerateAsmFromList(ASTNodeList* list);
 
 
@@ -290,6 +291,44 @@ static const char* GenReturnStatementAsm(ASTNode* node){
 	return str;
 }
 
+static const char* GenIfStatement(ASTNode* node){
+	if(node->lhs == NULL)	FatalM("Expected condition in if statement!", Line);
+	if(node->rhs == NULL)	FatalM("Expected action in if statememt!", Line);
+	const char* format;
+	if(node->mid == NULL){
+		format =
+			"%s"
+			"	cmp		$0,		%%rax\n"
+			"	je		%d1f\n"
+			"%s"
+			"%d1:\n"
+		;
+	}
+	else{
+		format =
+			"%s"
+			"	cmp		$0,		%%rax\n"
+			"	je		%d1f\n"
+			"%s"
+			"	jmp		%d2f\n"
+			"%d1:\n"
+			"%s"
+			"%d2:\n"
+		;
+	}
+	const char* rhs = GenStatementAsm(node->rhs);
+	const char* mid = node->mid == NULL ? "" : GenStatementAsm(node->mid);
+	const char* lhs = GenExpressionAsm(node->lhs);
+	int charCount = strlen(format) + strlen(lhs) + strlen(mid) + strlen(rhs) + 1;
+	char* str = malloc(charCount * sizeof(char));
+	labelPref++;
+	if(node->mid != NULL)
+		snprintf(str, charCount, format, lhs, labelPref, rhs, labelPref, labelPref, mid, labelPref);
+	else
+		snprintf(str, charCount, format, lhs, labelPref, rhs, labelPref);
+	return str;
+}
+
 static const char* GenDeclaration(ASTNode* node){
 	if(node == NULL)									FatalM("Expected an AST Node, got NULL instead", Line);
 	if(node->op != A_Declare)							FatalM("Expected declaration!", Line);
@@ -342,6 +381,7 @@ static const char* GenStatementAsm(ASTNode* node){
 	if(node->op == A_Return)	return GenReturnStatementAsm(node);
 	if(node->op == A_Declare)	return GenDeclaration(node);
 	if(node->op == A_Block)		return GenBlockAsm(node);
+	if(node->op == A_If)		return GenIfStatement(node);
 	return GenExpressionAsm(node);
 }
 

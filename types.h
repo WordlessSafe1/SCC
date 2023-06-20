@@ -37,6 +37,8 @@ enum eTokenCategory {
 	T_Equal,
 	T_Question,
 	T_Colon,
+	T_If,
+	T_Else,
 };
 typedef enum eTokenCategory TokenType;
 
@@ -71,6 +73,7 @@ enum eNodeType {
 	A_Assign,
 	A_Block,
 	A_Ternary,
+	A_If,
 };
 typedef enum eNodeType NodeType;
 

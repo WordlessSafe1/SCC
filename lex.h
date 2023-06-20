@@ -38,6 +38,8 @@ static Token* Tokenize(const char* str){
 	else if(streq(str, "="))		token->type = T_Equal;
 	else if(streq(str, "?"))		token->type = T_Question;
 	else if(streq(str, ":"))		token->type = T_Colon;
+	else if(streq(str, "if"))		token->type = T_If;
+	else if(streq(str, "else"))		token->type = T_Else;
 	else if(isdigit(str[0])){
 		token->type = T_LitInt;
 		token->value.intVal = atoi(str);

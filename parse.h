@@ -5,6 +5,7 @@
 #include "defs.h"
 
 ASTNode* ParseExpression();
+ASTNode* ParseStatement();
 ASTNode* ParseBlock();
 
 
@@ -205,13 +206,30 @@ ASTNode* ParseDeclaration(){
 	return MakeASTNodeExtended(A_Declare, expr, NULL, NULL, FlexStr(id), FlexStr(type));
 }
 
+ASTNode* ParseIfStatement(){
+	if(GetToken()->type != T_If)			FatalM("Expected 'if' to begin if statement!", Line);
+	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in if statement!", Line);
+	ASTNode* condition = ParseExpression();
+	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in if statement!", Line);
+	ASTNode* then = ParseStatement();
+	if(PeekToken()->type != T_Else)
+		return MakeASTBinary(A_If, condition, then, FlexNULL());
+	GetToken();
+	ASTNode* otherwise = ParseStatement();
+	return MakeASTNode(A_If, condition, otherwise, then, FlexNULL());
+}
+
 ASTNode* ParseStatement(){
 	Token* tok = PeekToken();
-	if(tok->type == T_Return)		return ParseReturnStatement();
+	switch(tok->type){
+		case T_Return:		return ParseReturnStatement();
+		case T_OpenBrace:	return ParseBlock();
+		case T_If:			return ParseIfStatement();
+		default:			break;
+	}
 	ASTNode* expr = NULL;
 	switch(tok->type){
 		case T_Type:		expr = ParseDeclaration();	break;
-		case T_OpenBrace:	return ParseBlock();
 		default:			expr = ParseExpression();	break;
 	}
 	if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon!", Line);

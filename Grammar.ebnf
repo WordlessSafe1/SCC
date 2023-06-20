@@ -3,8 +3,9 @@
 <function>				::= "int" "main" "(" ")" <block>
 <block_item>			::= <statement> | <declaration>
 <block>					::= '{' [ <block_item> ] '}'
-<statement>				::= <return_statement> | <expression> ';' | <block>
 <declaration>			::= "int" <id> [ '=' <expression> ] ';'
+<statement>				::= <block> | <return_statement> | if_statement> | <expression> ';'
+<if_statement>			::= "if" '(' <expression> ')' <statement> [ "else" <statement> ]
 <return_statement>		::= "return" <int> ';'
 <expression>			::= <assignment_expr>
 <assignment_expr>		::= <id> '=' <expression> | <conditional_expr>
