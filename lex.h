@@ -73,9 +73,15 @@ char* ShiftToken(){
 				break;
 			}
 			// If double symbol is valid operator
-			if(strchr("=|&<>", c)){
+			if(strchr("=|&<>/", c)){
 				char nextChar = fgetc(fptr);
 				if(c == nextChar){
+					if(c == '/'){
+						while(nextChar != '\n' && nextChar != EOF)
+							nextChar = fgetc(fptr);
+						ungetc(nextChar, fptr);
+						continue;
+					}
 					token[i++] = c;
 					token[i++] = nextChar;
 					break;
