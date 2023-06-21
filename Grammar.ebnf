@@ -20,7 +20,7 @@
 <bit_shift_expr>		::= <additive_expr> { ( "<<" | ">>" ) <additive_expr> }
 <additive_expr>			::= <term> { ( '+' | '-' ) <term> }
 <term>					::= <factor> { ( '*' | '/' | '%' ) <factor> }
-<factor>				::= <unary_op> <factor> | <id> | <int>
+<factor>				::= <unary_op> <factor> | <id> | <int> | '(' <expression> ')'
 
 <unary_op>				::= '~' | '!' | '-'
 

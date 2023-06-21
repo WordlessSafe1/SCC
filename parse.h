@@ -19,6 +19,11 @@ ASTNode* ParseFactor(){
 		case T_Tilde:		return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	FlexNULL());
 		case T_Identifier:	return MakeASTLeaf(A_VarRef, FlexStr(tok->value.strVal));
 		case T_Semicolon:	ungetc(';', fptr); return MakeASTLeaf(A_Undefined, FlexNULL());
+		case T_OpenParen:{
+			ASTNode* expr = ParseExpression();
+			if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis!", Line);
+			return expr;
+		}
 		default:			FatalM("Invalid expression!", Line);
 	}
 }
