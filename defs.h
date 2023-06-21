@@ -11,5 +11,6 @@
 #define bool unsigned
 
 #define streq(lhs, rhs) !strcmp(lhs, rhs)
+#define intlen(n) floor(log10(abs(n)) + 1)
 
 #endif

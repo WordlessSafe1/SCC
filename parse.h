@@ -224,12 +224,55 @@ ASTNode* ParseIfStatement(){
 	return MakeASTNode(A_If, condition, otherwise, then, FlexNULL());
 }
 
+ASTNode* ParseWhileLoop(){
+	if(GetToken()->type != T_While)			FatalM("Expected 'while' to begin while loop!", Line);
+	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in while loop!", Line);
+	ASTNode* condition = ParseExpression();
+	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in while loop!", Line);
+	ASTNode* stmt = ParseStatement();
+	return MakeASTBinary(A_While, condition, stmt, FlexNULL());
+}
+
+ASTNode* ParseDoLoop(){
+	if(GetToken()->type != T_Do)			FatalM("Expected 'do' to begin do-while loop!", Line);
+	ASTNode* stmt = ParseStatement();
+	if(GetToken()->type != T_While)			FatalM("Expected 'while' clause in do-while loop!", Line);
+	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in do-while loop!", Line);
+	ASTNode* condition = ParseExpression();
+	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in do-while loop!", Line);
+	return MakeASTBinary(A_Do, condition, stmt, FlexNULL());
+}
+
+ASTNode* ParseForLoop(){
+	if(GetToken()->type != T_For)			FatalM("Expected 'for' to begin for loop!", Line);
+	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in for loop!", Line);
+	ASTNode* initializer = NULL;
+	switch(PeekToken()->type){
+		case T_Semicolon:	break;
+		case T_Type:		initializer = ParseDeclaration();	break;
+		default:			initializer = ParseExpression();	break;
+	}
+	if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon in for loop!", Line);
+	ASTNode* condition	= PeekToken()->type == T_Semicolon ? NULL : ParseExpression();
+	if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon in for loop!", Line);
+	ASTNode* modifier	= PeekToken()->type == T_CloseParen ? NULL : ParseExpression();
+	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in for loop!", Line);
+	ASTNode* stmt = ParseStatement();
+	ASTNode* header = MakeASTNode(A_Glue, initializer, condition, modifier, FlexNULL());
+	return MakeASTBinary(A_For, header, stmt, FlexNULL());
+}
+
 ASTNode* ParseStatement(){
 	Token* tok = PeekToken();
 	switch(tok->type){
 		case T_Return:		return ParseReturnStatement();
 		case T_OpenBrace:	return ParseBlock();
 		case T_If:			return ParseIfStatement();
+		case T_For:			return ParseForLoop();
+		case T_While:		return ParseWhileLoop();
+		case T_Do:			return ParseDoLoop();
+		case T_Continue:	GetToken(); return MakeASTLeaf(A_Continue, FlexNULL());
+		case T_Break:		GetToken(); return MakeASTLeaf(A_Break, FlexNULL());
 		default:			break;
 	}
 	ASTNode* expr = NULL;

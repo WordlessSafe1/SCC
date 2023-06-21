@@ -39,11 +39,17 @@ enum eTokenCategory {
 	T_Colon,
 	T_If,
 	T_Else,
+	T_While,
+	T_Do,
+	T_For,
+	T_Break,
+	T_Continue,
 };
 typedef enum eTokenCategory TokenType;
 
 enum eNodeType {
 	A_Undefined = 0,
+	A_Glue,
 	A_Function,
 	A_Return,
 	A_LitInt,
@@ -74,6 +80,11 @@ enum eNodeType {
 	A_Block,
 	A_Ternary,
 	A_If,
+	A_While,
+	A_Do,
+	A_For,
+	A_Continue,
+	A_Break,
 };
 typedef enum eNodeType NodeType;
 

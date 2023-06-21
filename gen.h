@@ -1,4 +1,5 @@
 #include <string.h>
+#include <math.h>
 
 #include "defs.h"
 #include "types.h"
@@ -347,6 +348,118 @@ static const char* GenDeclaration(ASTNode* node){
 	return expr;
 }
 
+static const char* GenWhileLoop(ASTNode* node){
+	if(node == NULL)							FatalM("Expected an AST Node, got NULL instead", Line);
+	if(node->op != A_While && node->op != A_Do)	FatalM("Expected While or Do-While loop!", Line);
+	const char* condition	= GenExpressionAsm(node->lhs);
+	const char* action		= GenStatementAsm(node->rhs);
+	char* buffer;
+	labelPref++;
+	if(node->op == A_Do){
+		const char* format =
+			"%d0:\n"
+			"0:\n"
+			"%s"						// Action
+			"%s"						// Condition
+			"	cmp		$0,		%%rax\n"
+			"	jne		%d0b\n"
+			"%d9:\n"
+			"9:\n"
+		;
+		int charCount = strlen(condition) + strlen(action) + strlen(format) + (3 * intlen(labelPref)) + 1;
+		buffer = malloc(charCount * sizeof(char));
+		snprintf(buffer, charCount, format, labelPref, action, condition, labelPref);
+		return buffer;
+	}
+	const char* format = 
+		"%d0:\n"
+		"0:\n"
+		"%s"						// Condition
+		"	cmp		$0,		%%rax\n"
+		"	je		%d9f\n"
+		"%s"						// Action
+		"	jmp		%d0b\n"
+		"%d9:\n"
+		"9:\n"
+	;
+	int charCount = strlen(condition) + strlen(action) + strlen(format) + (4 * intlen(labelPref)) + 1;
+	buffer = malloc(charCount * sizeof(char));
+	snprintf(buffer, charCount, format, labelPref, condition, labelPref, action, labelPref, labelPref);
+	return buffer;
+}
+
+static const char* GenForLoop(ASTNode* node){
+	if(node == NULL)									FatalM("Expected an AST Node, got NULL instead", Line);
+	if(node->op != A_For)								FatalM("Expected for loop!", Line);
+	if(node->rhs == NULL)								FatalM("Expected a statement folowing for loop!", Line);
+	EnterScope();
+	const char* initializer = NULL;
+	if(node->lhs->lhs == NULL)					initializer = "";
+	else if(node->lhs->lhs->op == A_Declare)	initializer = GenDeclaration(node->lhs->lhs);
+	else										initializer = GenExpressionAsm(node->lhs->lhs);
+	const char* modifier	= node->lhs->rhs == NULL ? "" : GenExpressionAsm(node->lhs->rhs);
+	const char* action		= GenStatementAsm(node->rhs);
+	const char* format =
+		"%s"				// Allocate Stack Space for vars
+		"%s"				// Initializer
+		"%d0:\n"
+		"0:\n"
+		"%s"				// Condition
+		"%s"				// Action
+		"8:\n"
+		"%s"				// Modifier
+		"	jmp		%d0b\n"
+		"%d9:\n"
+		"9:\n"
+		"%s"				// Deallocate Stack Space for vars
+	;
+	const char* condition	= node->lhs->mid == NULL ? NULL : GenExpressionAsm(node->lhs->mid);
+	// Beyond this point, don't generate any more ASM using other functions
+	int stackSize = GetLocalVarCount(scope) * 8;
+	char* stackAlloc = malloc(1 * sizeof(char));
+	*stackAlloc = '\0';
+	char* stackDealloc = malloc(1 * sizeof(char));
+	*stackDealloc = '\0';
+	if(stackSize){
+		free(stackAlloc);
+		free(stackDealloc);
+		const char* format = "	sub		$%d,		%%rsp\n";
+		int len = strlen(format) + intlen(stackSize) + 1;
+		stackAlloc = malloc(len * sizeof(char));
+		snprintf(stackAlloc, len, format, stackSize);
+		format = "	add		$%d,		%%rsp\n";
+		stackDealloc = malloc(len * sizeof(char));
+		snprintf(stackDealloc, len, format, stackSize);
+	}
+	labelPref++;
+	if(condition != NULL){
+		const char* condCheck = 
+			"%s"
+			"	cmp		$0,		%%rax\n"
+			"	je		%d9f\n"
+		;
+		int charCount = strlen(condCheck) + strlen(condition);
+		char* buffer = malloc(charCount * sizeof(char));
+		snprintf(buffer, charCount, condCheck, condition, labelPref);
+		condition = buffer;
+	}
+	int charCount = strlen(stackAlloc) + strlen(initializer) + strlen(modifier) + strlen(format) + strlen(condition) + strlen(action) + (3 * intlen(labelPref)) + strlen(stackDealloc) + 1;
+	char* str = malloc(charCount * sizeof(char));
+	snprintf(str, charCount, format, stackAlloc, initializer, labelPref, condition, action, modifier, labelPref, labelPref, stackDealloc);
+	free((void*)condition);
+	free(stackAlloc);
+	ExitScope();
+	return str;
+}
+
+static const char* GenContinue(ASTNode* node){
+	return "	jmp		8f\n";
+}
+
+static const char* GenBreak(ASTNode* node){
+	return "	jmp		9f\n";
+}
+
 static const char* GenBlockAsm(ASTNode* node){
 	if(node == NULL)				FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op != A_Block)			FatalM("Expected function at top level statement!", Line);
@@ -378,11 +491,18 @@ static const char* GenBlockAsm(ASTNode* node){
 
 static const char* GenStatementAsm(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
-	if(node->op == A_Return)	return GenReturnStatementAsm(node);
-	if(node->op == A_Declare)	return GenDeclaration(node);
-	if(node->op == A_Block)		return GenBlockAsm(node);
-	if(node->op == A_If)		return GenIfStatement(node);
-	return GenExpressionAsm(node);
+	switch(node->op){
+		case A_Return:		return GenReturnStatementAsm(node);
+		case A_Declare:		return GenDeclaration(node);
+		case A_Block:		return GenBlockAsm(node);
+		case A_If:			return GenIfStatement(node);
+		case A_For:			return GenForLoop(node);
+		case A_Do:
+		case A_While:		return GenWhileLoop(node);
+		case A_Continue:	return GenContinue(node);
+		case A_Break:		return GenBreak(node);
+		default:			return GenExpressionAsm(node);
+	}
 }
 
 static const char* GenFunctionAsm(ASTNode* node){
