@@ -1,6 +1,6 @@
 <comment>				::= "//" { <letter> | <digit> | <symbol> | ' ' | '\t' }
-<program>				::= <function>
-<function>				::= "int" "main" "(" ")" <block>
+<program>				::= { <function> }
+<function>				::= "int" <id> "(" ")" ( <block> | ';' )
 <block_item>			::= <statement> | <declaration>
 <block>					::= '{' [ <block_item> ] '}'
 <declaration>			::= "int" <id> [ '=' <expression> ] ';'

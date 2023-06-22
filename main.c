@@ -47,7 +47,10 @@ int main(int argc, char** argv){
 	}
 	if (inputTarget == NULL)	FatalM("No input file specified!", NOLINE);
 	fptr = fopen(inputTarget, "r");
-	ASTNode* ast = ParseFunction();
+	ASTNodeList* ast = MakeASTNodeList();
+		while(PeekToken() != NULL)
+			AddNodeToASTList(ast, ParseFunction());
+	// ASTNode* ast = ParseFunction();
 	if(GetToken() != NULL)	FatalM("Expected EOF!", Line);
 	fclose(fptr);
 	Line = NOLINE;

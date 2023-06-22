@@ -644,18 +644,23 @@ static const char* GenFunctionAsm(ASTNode* node){
 	return str;
 }
 
-const char* GenerateAsm(ASTNode* node){
-	return GenFunctionAsm(node);
+const char* GenerateAsm(ASTNodeList* node){
+	return GenerateAsmFromList(node);
 }
 
 const char* GenerateAsmFromList(ASTNodeList* list){
 	if(list->count < 1)	return "";
-	const char* generated = GenStatementAsm(list->nodes[0]);
-	char* buffer = malloc(strlen(generated) + 1);
-	strcpy(buffer, generated);
-	int i = 1;
+	const char* generated = NULL;
+	char* buffer = malloc(1);
+	*buffer = '\0';
+	int i = 0;
 	while(i < list->count){
-		generated = GenStatementAsm(list->nodes[i]);
+		ASTNode* node = list->nodes[i];
+		switch(node->op){
+			case A_Function:	generated = GenFunctionAsm(node);	break;
+			default:			generated = GenStatementAsm(node);	break;
+		}
+		// generated = GenStatementAsm(node);
 		buffer = realloc(buffer, strlen(buffer) + strlen(generated) + 1);
 		strcat(buffer, generated);
 		i++;
