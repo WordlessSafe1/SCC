@@ -7,7 +7,7 @@
 #include "defs.h"
 #include "types.h"
 #include "lex.h"
-#include "varTable.h"
+#include "symTable.h"
 #include "parse.h"
 #include "gen.h"
 
