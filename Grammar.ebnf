@@ -13,7 +13,7 @@
 <for_loop>				::= "for" '(' ( <declaration> | [ <expression> ] ';' ) [ <expression> ] ';' [ <expression> ] ')' <statement>
 <return_statement>		::= "return" <int> ';'
 <expression>			::= <assignment_expr>
-<assignment_expr>		::= <id> '=' <expression> | <conditional_expr>
+<assignment_expr>		::= <id> [ <compound_assign_op> ] '=' <expression> | <conditional_expr>
 <conditional_expr>		::= <logical_or_expr> [ '?' [ <expression> ] ':' <conditional_expr> ]
 <logical_or_expr>		::= <logical_and_expr> { "||" <logical_and_expr> }
 <logical_and_expr>		::= <bitwise_or_expr> { "&&" <bitwise_or_expr> }
@@ -25,9 +25,10 @@
 <bit_shift_expr>		::= <additive_expr> { ( "<<" | ">>" ) <additive_expr> }
 <additive_expr>			::= <term> { ( '+' | '-' ) <term> }
 <term>					::= <factor> { ( '*' | '/' | '%' ) <factor> }
-<factor>				::= <unary_op> <factor> | <id> | <int> | '(' <expression> ')'
+<factor>				::= <unary_op> <factor> | ( "++" | "--" ) <id> | <id> ( "++" | "--" ) | <id> | <int> | '(' <expression> ')'
 
 <unary_op>				::= '~' | '!' | '-'
+<compound_assign_op>	::= '+' | '-' | '*' | '/' | '%' | "<<" | ">>" | '&' | '^' | '|'
 
 <id>					::= <letter> { <letter> | <digit> }
 <character-literal>		::= "'" ( <symbol> | <letter> | <digit> ) "'"

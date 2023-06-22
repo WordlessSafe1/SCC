@@ -45,6 +45,18 @@ static Token* Tokenize(const char* str){
 	else if(streq(str, "for"))		token->type = T_For;
 	else if(streq(str, "break"))	token->type = T_Break;
 	else if(streq(str, "continue"))	token->type = T_Continue;
+	else if(streq(str, "+="))		token->type = T_PlusEqual;
+	else if(streq(str, "-="))		token->type = T_MinusEqual;
+	else if(streq(str, "*="))		token->type = T_AsteriskEqual;
+	else if(streq(str, "/="))		token->type = T_DivideEqual;
+	else if(streq(str, "%="))		token->type = T_PercentEqual;
+	else if(streq(str, "<<="))		token->type = T_DoubleLessEqual;
+	else if(streq(str, ">>="))		token->type = T_DoubleGreaterEqual;
+	else if(streq(str, "&="))		token->type = T_AmpersandEqual;
+	else if(streq(str, "^="))		token->type = T_CaretEqual;
+	else if(streq(str, "|="))		token->type = T_PipeEqual;
+	else if(streq(str, "++"))		token->type = T_PlusPlus;
+	else if(streq(str, "--"))		token->type = T_MinusMinus;
 	else if(isdigit(str[0])){
 		token->type = T_LitInt;
 		token->value.intVal = atoi(str);
@@ -76,34 +88,43 @@ char* ShiftToken(){
 		}
 		if(strchr("(){};-~!+*/%%<>=&^|?:", c)){
 			if(i){
-				ungetc(c, fptr);
+				fseek(fptr, -1, SEEK_CUR);
 				break;
 			}
 			// If double symbol is valid operator
-			if(strchr("=|&<>/", c)){
+			if(strchr("=|&<>/+-", c)){
 				char nextChar = fgetc(fptr);
 				if(c == nextChar){
 					if(c == '/'){
 						while(nextChar != '\n' && nextChar != EOF)
 							nextChar = fgetc(fptr);
-						ungetc(nextChar, fptr);
+						fseek(fptr, -1, SEEK_CUR);
 						continue;
 					}
 					token[i++] = c;
 					token[i++] = nextChar;
+					// If double symbol followed by equals is valid operator
+					if(strchr("<>", c)){
+						nextChar = fgetc(fptr);
+						if(nextChar == '='){
+							token[i++] = nextChar;
+							break;
+						}
+						fseek(fptr, -1, SEEK_CUR);
+					}
 					break;
 				}
-				ungetc(nextChar, fptr);
+				fseek(fptr, -1, SEEK_CUR);
 			}
 			// If symbol followed by equal is valid operator
-			if(strchr("=<>!", c)){
+			if(strchr("=<>!+-*/%&^|", c)){
 				char nextChar = fgetc(fptr);
 				if(nextChar == '='){
 					token[i++] = c;
 					token[i++] = nextChar;
 					break;
 				}
-				ungetc(nextChar, fptr);
+				fseek(fptr, -1, SEEK_CUR);
 			}
 			token[i++] = c;
 			break;
@@ -115,18 +136,39 @@ char* ShiftToken(){
 	return i ? token : NULL;
 }
 
-static void UnshiftToken(const char* token){
-	int i = strlen(token);
-	ungetc(' ', fptr);
-	//while(token[i++]);
-	while(i--)
-		ungetc(token[i], fptr);
+Token* PeekToken(){
+	fpos_t* fpos = malloc(sizeof(fpos_t));
+	fgetpos(fptr, fpos);
+	int ln = Line;
+	const char* str = ShiftToken();
+	fsetpos(fptr, fpos);
+	free(fpos);
+	Line = ln;
+	if(str == NULL)	return NULL;
+	return Tokenize(str);
 }
 
-Token* PeekToken(){
+/// Peek the next token + n.
+/// PeekTokenN(0) == PeekToken()
+Token* PeekTokenN(int n){
+	fpos_t* fpos = malloc(sizeof(fpos_t));
+	int ln = Line;
+	bool failed = false;
+	fgetpos(fptr, fpos);
+	for(int i = 0; i < n; i++){
+		if(ShiftToken() == NULL){
+			failed = true;
+			break;
+		}
+	}
 	const char* str = ShiftToken();
-	UnshiftToken(str);
-	return Tokenize(str);
+	if (str == NULL)
+		failed = true;
+	Token* t = failed ? NULL : Tokenize(str);
+	fsetpos(fptr, fpos);
+	free(fpos);
+	Line = ln;
+	return t;
 }
 
 Token* GetToken(){

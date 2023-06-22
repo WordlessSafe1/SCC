@@ -233,13 +233,126 @@ static const char* GenAssignment(ASTNode* node){
 	return str;
 }
 
+static const char* GenIncDec(ASTNode* node){
+	if(node == NULL)										FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
+	if(node->op != A_Increment && node->op != A_Decrement)	FatalM("Expected increment or decrement in expression! (In gen.h)", __LINE__);
+	const char* id = node->lhs->value.strVal;
+	VarEntry* var = FindVar(id, scope);
+	if(var == NULL)				FatalM("Variable not defined!", Line);
+	const char* format;
+	if(node->op == A_Increment){
+		if(node->value.intVal)
+			format =
+				"	mov		%s,	%%rax\n"
+				"	incq	%s\n"
+			;
+		else
+			format =
+				"	incq	%s\n"
+				"	mov		%s,	%%rax\n"
+			;
+	}
+	else{
+		if(node->value.intVal)
+			format =
+				"	mov		%s,	%%rax\n"
+				"	decq	%s\n"
+			;
+		else
+			format =
+				"	decq	%s\n"
+				"	mov		%s,	%%rax\n"
+			;
+	}
+	int charCount = strlen(format) + (2 * strlen(var->value));
+	char* str = malloc(charCount * sizeof(char));
+	snprintf(str, charCount, format, var->value, var->value);
+	return str;
+}
+
+static const char* GenCompoundAssignment(ASTNode* node){
+	if(node == NULL)	FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
+	const char* id = node->lhs->value.strVal;
+	const char* rhs = GenExpressionAsm(node->rhs);
+	VarEntry* var = FindVar(id, scope);
+	if(var == NULL)		FatalM("Variable not defined!", Line);
+	// val, op, mov -> offset
+	const char* format = NULL;
+	switch(node->op){
+		case A_AssignSum:			format = "%s	add		%%rax,	%s\n	mov		%s,	%%rax\n";				break;
+		case A_AssignDifference:	format = "%s	sub		%%rax,	%s\n	mov		%s,	%%rax\n";				break;
+		case A_AssignProduct:		format = "%s	imul	%s,	%%rax\n	mov		%%rax,	%s\n";					break;
+		case A_AssignBitwiseAnd:	format = "%s	and		%%rax,	%s\n	mov		%s,	%%rax\n";				break;
+		case A_AssignBitwiseXor:	format = "%s	xor		%%rax,	%s\n	mov		%s,	%%rax\n";				break;
+		case A_AssignBitwiseOr:		format = "%s	or		%%rax,	%s\n	mov		%s,	%%rax\n";				break;
+		case A_AssignQuotient:
+			format = 
+				"%s"
+				"	mov		%%rax,	%%rcx\n"
+				"	mov		%s,	%%rax\n"
+				"	cqo\n"
+				"	idiv	%%rcx\n"
+				"	mov		%%rax,	%s\n"
+			;
+			break;
+		case A_AssignModulus:
+			format = 
+				"%s"
+				"	mov		%%rax,	%%rcx\n"
+				"	mov		%s,	%%rax\n"
+				"	cqo\n"
+				"	idiv	%%rcx\n"
+				"	mov		%%rdx,	%%rax\n"
+				"	mov		%%rax,	%s\n"
+			;
+			break;
+		case A_AssignLeftShift:
+			format = 
+				"%s"
+				"	mov		%%rax,	%%rcx\n"
+				"	mov		%s,	%%rax\n"
+				"	shl		%%rcx,	%%rax\n"
+				"	mov		%%rax,	%s\n"
+			;
+			break;
+		case A_AssignRightShift:
+			format = 
+				"%s"
+				"	mov		%%rax,	%%rcx\n"
+				"	mov		%s,	%%rax\n"
+				"	sar		%%rcx,	%%rax\n"
+				"	mov		%%rax,	%s\n"
+			;
+			break;
+		default:					FatalM("Unexpected operation in compound assignment! (In gen.h)", __LINE__);
+	}
+	int charCount = strlen(format) + strlen(rhs) + (2 * strlen(var->value)) + 1;
+	char* str = malloc(charCount * sizeof(char));
+	snprintf(str, charCount, format, rhs, var->value, var->value);
+	return str;
+}
+
 static const char* GenExpressionAsm(ASTNode* node){
-	if(node == NULL)					FatalM("Expected an AST node, got NULL instead.", Line);
+	if(node == NULL)					FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
 	switch(node->op){
 		case A_LitInt:				return GenLitInt(node);
 		case A_VarRef:				return GenVarRef(node);
-		case A_Assign:				return GenAssignment(node);
 		case A_Ternary:				return GenTernary(node);
+		case A_Assign:				return GenAssignment(node);
+		// Compound Assignment
+		case A_AssignSum:
+		case A_AssignDifference:
+		case A_AssignProduct:
+		case A_AssignQuotient:
+		case A_AssignModulus:
+		case A_AssignLeftShift:
+		case A_AssignRightShift:
+		case A_AssignBitwiseAnd:
+		case A_AssignBitwiseXor:
+		case A_AssignBitwiseOr:		return GenCompoundAssignment(node);
+		// Increment / Decrement
+		case A_Increment:
+		case A_Decrement:			return GenIncDec(node);
 		// Unary Operators
 		case A_Negate:
 		case A_BitwiseComplement:

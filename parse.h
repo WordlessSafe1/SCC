@@ -11,14 +11,32 @@ ASTNode* ParseBlock();
 
 ASTNode* ParseFactor(){
 	Token* tok = GetToken();
-	ASTNode* ret;
 	switch(tok->type){
 		case T_LitInt:		return MakeASTLeaf(A_LitInt, FlexInt(tok->value.intVal));
 		case T_Minus:		return MakeASTUnary(A_Negate,				ParseFactor(),	FlexNULL());
 		case T_Bang:		return MakeASTUnary(A_LogicalNot,			ParseFactor(),	FlexNULL());
 		case T_Tilde:		return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	FlexNULL());
-		case T_Identifier:	return MakeASTLeaf(A_VarRef, FlexStr(tok->value.strVal));
 		case T_Semicolon:	ungetc(';', fptr); return MakeASTLeaf(A_Undefined, FlexNULL());
+		case T_Identifier:{
+			ASTNode* ref = MakeASTLeaf(A_VarRef, FlexStr(tok->value.strVal));
+			Token* tok = PeekToken();
+			if(tok->type != T_PlusPlus && tok->type != T_MinusMinus)
+				return ref;
+			tok = GetToken();
+			if(tok->type == T_PlusPlus)
+				return MakeASTUnary(A_Increment, ref, FlexInt(0));
+			return MakeASTUnary(A_Decrement, ref, FlexInt(0));
+		}
+		case T_PlusPlus:{
+			ASTNode* ref = ParseFactor();
+			if(ref->op != A_VarRef)		FatalM("The increment prefix operator '++' may only be used before a variable name!", Line);
+			return MakeASTUnary(A_Increment, ref, FlexInt(1));
+		}
+		case T_MinusMinus:{
+			ASTNode* ref = ParseFactor();
+			if(ref->op != A_VarRef)		FatalM("The decrement prefix operator '--' may only be used before a variable name!", Line);
+			return MakeASTUnary(A_Decrement, ref, FlexInt(1));
+		}
 		case T_OpenParen:{
 			ASTNode* expr = ParseExpression();
 			if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis!", Line);
@@ -179,12 +197,26 @@ ASTNode* ParseConditionalExpression(){
 ASTNode* ParseAssignmentExpression(){
 	ASTNode* lhs = ParseConditionalExpression();
 	if(lhs == NULL)							FatalM("Got NULL instead of expression! (In parse.h)", __LINE__);
-	if(lhs->op != A_VarRef || PeekToken()->type != T_Equal)
-		return lhs;
-	if(GetToken()->type != T_Equal)			FatalM("Expected '=' in assignment!", Line);
+	if(lhs->op != A_VarRef)		return lhs;
+	NodeType nt = A_Undefined;
+	switch(PeekToken()->type){
+		case T_Equal:				nt = A_Assign;				break;
+		case T_PlusEqual:			nt = A_AssignSum;			break;
+		case T_MinusEqual:			nt = A_AssignDifference;	break;
+		case T_AsteriskEqual:		nt = A_AssignProduct;		break;
+		case T_DivideEqual:			nt = A_AssignQuotient;		break;
+		case T_PercentEqual:		nt = A_AssignModulus;		break;
+		case T_DoubleLessEqual:		nt = A_AssignLeftShift;		break;
+		case T_DoubleGreaterEqual:	nt = A_AssignRightShift;	break;
+		case T_AmpersandEqual:		nt = A_AssignBitwiseAnd;	break;
+		case T_CaretEqual:			nt = A_AssignBitwiseXor;	break;
+		case T_PipeEqual:			nt = A_AssignBitwiseOr;		break;
+		default:					return lhs;
+	}
+	GetToken();
 	ASTNode* rhs = ParseExpression();
 	if(lhs == NULL)							FatalM("Expected expression!", Line);
-	return MakeASTBinary(A_Assign, lhs, rhs, FlexNULL());
+	return MakeASTBinary(nt, lhs, rhs, FlexNULL());
 }
 
 ASTNode* ParseExpression(){
