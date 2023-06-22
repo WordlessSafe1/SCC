@@ -3,9 +3,25 @@
 
 #include "globals.h"
 
+#define TYPES_COMPATIBLE	1
+#define TYPES_INCOMPATIBLE	0
+#define TYPES_WIDEN_LHS		-1
+#define TYPES_WIDEN_RHS		-2
+
+enum ePrimordialType {
+	P_Undefined = 0,
+	P_Void,
+	P_Char,
+	P_Int,
+};
+typedef enum ePrimordialType PrimordialType;
+
 enum eTokenCategory {
 	T_Undefined = 0,
-	T_Type,
+	// T_Type,
+	T_Int,
+	T_Char,
+	T_Void,
 	T_Identifier,
 	T_OpenParen,
 	T_CloseParen,
@@ -126,12 +142,12 @@ typedef struct token Token;
 
 struct ast_node {
 	NodeType op;
+	PrimordialType type;
 	struct ast_node *lhs;
 	struct ast_node *mid;
 	struct ast_node *rhs;
 	struct ast_node_list *list;
 	FlexibleValue value;
-	FlexibleValue secondValue;
 };
 typedef struct ast_node ASTNode;
 
@@ -158,46 +174,46 @@ ASTNodeList* AddNodeToASTList(ASTNodeList* list, ASTNode* node){
 	return list;
 }
 
-ASTNode* MakeASTNodeExtended(int op, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value, FlexibleValue secondValue){
+ASTNode* MakeASTNodeExtended(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value){
 	ASTNode* node = malloc(sizeof(ASTNode));
 	if(node == NULL)
 		FatalM("Failed to malloc in MakeASTNode()", Line);
 	node->op = op;
+	node->type = type;
 	node->lhs = lhs;
 	node->mid = mid;
 	node->rhs = rhs;
 	node->value = value;
-	node->secondValue = secondValue;
 	return node;
 }
 
-ASTNode* MakeASTNode (int op, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value){
+ASTNode* MakeASTNode(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value){
 	ASTNode* node = malloc(sizeof(ASTNode));
 	if(node == NULL)
 		FatalM("Failed to malloc in MakeASTNode()", Line);
 	node->op = op;
+	node->type = type;
 	node->lhs = lhs;
 	node->mid = mid;
 	node->rhs = rhs;
 	node->value = value;
-	node->secondValue.strVal = NULL;
 	return node;
 }
 
-ASTNode* MakeASTBinary(int op, ASTNode* lhs, ASTNode* rhs, FlexibleValue value){
-	return MakeASTNode(op, lhs, NULL, rhs, value);
+ASTNode* MakeASTBinary(int op, PrimordialType type, ASTNode* lhs, ASTNode* rhs, FlexibleValue value){
+	return MakeASTNode(op, type, lhs, NULL, rhs, value);
 }
 
-ASTNode* MakeASTLeaf(int op, FlexibleValue value){
-	return MakeASTBinary(op, NULL, NULL, value);
+ASTNode* MakeASTLeaf(int op, PrimordialType type, FlexibleValue value){
+	return MakeASTNode(op, type, NULL, NULL, NULL, value);
 }
 
 ASTNode* MakeASTUnary(int op, ASTNode* lhs, FlexibleValue value){
-	return MakeASTBinary(op, lhs, NULL, value);
+	return MakeASTBinary(op, lhs->type, lhs, NULL, value);
 }
 
 ASTNode* MakeASTList(int op, ASTNodeList* list, FlexibleValue value){
-	ASTNode* node = MakeASTLeaf(op, value);
+	ASTNode* node = MakeASTLeaf(op, P_Undefined, value);
 	node->list = list;
 }
 
@@ -214,5 +230,24 @@ FlexibleValue FlexInt(int num){
 FlexibleValue FlexNULL(){
 	return FlexStr(NULL);
 }
+
+int CheckTypeCompatibility(PrimordialType lhs, PrimordialType rhs){
+	if(lhs == P_Void	|| rhs == P_Void)	return TYPES_INCOMPATIBLE;
+	if(lhs == rhs)							return TYPES_COMPATIBLE;
+	if(lhs == P_Char	&& rhs == P_Int)	return TYPES_WIDEN_LHS;
+	if(lhs == P_Int		&& rhs == P_Char)	return TYPES_WIDEN_RHS;
+	return TYPES_COMPATIBLE;
+}
+
+PrimordialType GetWidestType(PrimordialType lhs, PrimordialType rhs){
+	switch(CheckTypeCompatibility(lhs, rhs)){
+		case TYPES_INCOMPATIBLE:	return P_Undefined;
+		case TYPES_WIDEN_LHS:		return rhs;
+		default:					return lhs;
+	}
+}
+
+#define NodeTypesCompatible(lhs, rhs) CheckTypeCompatibility(lhs->type, rhs->type)
+#define NodeWidestType(lhs, rhs) GetWidestType(lhs->type, rhs->type)
 
 #endif

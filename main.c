@@ -7,8 +7,8 @@
 #include "defs.h"
 #include "types.h"
 #include "lex.h"
-#include "parse.h"
 #include "varTable.h"
+#include "parse.h"
 #include "gen.h"
 
 #ifdef extern_main
@@ -50,7 +50,6 @@ int main(int argc, char** argv){
 	ASTNodeList* ast = MakeASTNodeList();
 		while(PeekToken() != NULL)
 			AddNodeToASTList(ast, ParseFunction());
-	// ASTNode* ast = ParseFunction();
 	if(GetToken() != NULL)	FatalM("Expected EOF!", Line);
 	fclose(fptr);
 	Line = NOLINE;
@@ -65,4 +64,9 @@ void FatalM(const char* msg, int line){
 	if(line == NOLINE)	printf("Fatal error encountered:\n\t%s\n", msg);
 	else				printf("Fatal error encountered on ln %d:\n\t%s\n", line, msg);
 	exit(-1);
+}
+
+void WarnM(const char* msg, int line){
+	if(line == NOLINE)	printf("Warning:\n\t%s\n", msg);
+	else				printf("Warning - on ln %d:\n\t%s\n", line, msg);
 }

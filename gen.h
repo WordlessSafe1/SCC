@@ -14,7 +14,7 @@ const char* GenerateAsmFromList(ASTNodeList* list);
 static const char* GenLitInt(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op != A_LitInt)	FatalM("Expected literal int in expression!", Line);
-	const char* format = "	mov		$%d,	%%rax\n";
+	const char* format = "	movq	$%d,	%%rax\n";
 	int value = node->value.intVal;
 	int charCount = strlen(format) + (value ? (int)(log10(value) + 1) : 1 )/* <- # of digits in value */ + 1;
 	char* str = malloc(charCount * sizeof(char));
@@ -26,9 +26,9 @@ static const char* GenVarRef(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
 	if(node->op != A_VarRef)	FatalM("Expected variable reference in expression! (In gen.h)", __LINE__);
 	const char* id = node->value.strVal;
-	VarEntry* var = FindVar(id, scope);
+	SymEntry* var = FindVar(id, scope);
 	if(var == NULL)				FatalM("Variable not defined!", Line);
-	const char* format = "	mov		%s,	%%rax\n";
+	const char* format = "	movq	%s,	%%rax\n";
 	int charCount = strlen(format) + strlen(var->value) + 1;
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, var->value);
@@ -44,7 +44,7 @@ static const char* GenUnary(ASTNode* node){
 		case A_LogicalNot:
 			instr =
 				"	cmp		$0,		%rax\n"
-				"	mov		$0,		%rax\n"
+				"	movq	$0,		%rax\n"
 				"	sete	%al\n"
 			;
 			break;
@@ -71,14 +71,14 @@ static const char* GenLTRBinary(ASTNode* node){
 		case A_EqualTo:
 			instr =
 				"	cmp		%rcx,	%rax\n"
-				"	mov		$0,		%rax\n"
+				"	movq	$0,		%rax\n"
 				"	sete	%al\n"
 			;
 			break;
 		case A_NotEqualTo:
 			instr =
 				"	cmp		%rcx,	%rax\n"
-				"	mov		$0,		%rax\n"
+				"	movq	$0,		%rax\n"
 				"	setne	%al\n"
 			;
 			break;
@@ -111,20 +111,20 @@ static const char* GenRTLBinary(ASTNode* node){
 			instr =
 				"	cqo\n"
 				"	idiv	%rcx\n"
-				"	mov		%rdx,	%rax\n"
+				"	movq	%rdx,	%rax\n"
 			;
 			break;
 		case A_LessThan:
 			instr =
 				"	cmp		%rcx,	%rax\n"
-				"	mov		$0,		%rax\n"
+				"	movq	$0,		%rax\n"
 				"	setl	%al\n"
 			;
 			break;
 		case A_GreaterThan:
 			instr =
 				"	cmp		%rcx,	%rax\n"
-				"	mov		$0,		%rax\n"
+				"	movq	$0,		%rax\n"
 				"	setg	%al\n"
 			;
 			break;
@@ -151,7 +151,7 @@ static const char* GenShortCircuiting(ASTNode* node){
 				"%d1:\n"
 				"%s"
 				"	cmp		$0,		%%rax\n"
-				"	mov		$0,		%%rax\n"
+				"	movq	$0,		%%rax\n"
 				"	setne	%%al\n"
 				"%d2:\n"
 			;
@@ -161,12 +161,12 @@ static const char* GenShortCircuiting(ASTNode* node){
 				"%s"
 				"	cmp		$0,		%%rax\n"
 				"	je		%d1f\n"
-				"	mov		$1,		%%rax\n"
+				"	movq	$1,		%%rax\n"
 				"	jmp		%d2f\n"
 				"%d1:\n"
 				"%s"
 				"	cmp		$0,		%%rax\n"
-				"	mov		$0,		%%rax\n"
+				"	movq	$0,		%%rax\n"
 				"	setne	%%al\n"
 				"%d2:\n"
 			;
@@ -224,9 +224,9 @@ static const char* GenAssignment(ASTNode* node){
 	if(node->op != A_Assign)	FatalM("Expected assignment in expression! (In gen.h)", __LINE__);
 	const char* id = node->lhs->value.strVal;
 	const char* rhs = GenExpressionAsm(node->rhs);
-	VarEntry* var = FindVar(id, scope);
+	SymEntry* var = FindVar(id, scope);
 	if(var == NULL)				FatalM("Variable not defined!", Line);
-	const char* format = "%s	mov		%%rax,	%s\n";
+	const char* format = "%s	movq	%%rax,	%s\n";
 	int charCount = strlen(format) + strlen(rhs) + strlen(var->value);
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, rhs, var->value);
@@ -237,31 +237,31 @@ static const char* GenIncDec(ASTNode* node){
 	if(node == NULL)										FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
 	if(node->op != A_Increment && node->op != A_Decrement)	FatalM("Expected increment or decrement in expression! (In gen.h)", __LINE__);
 	const char* id = node->lhs->value.strVal;
-	VarEntry* var = FindVar(id, scope);
+	SymEntry* var = FindVar(id, scope);
 	if(var == NULL)				FatalM("Variable not defined!", Line);
 	const char* format;
 	if(node->op == A_Increment){
 		if(node->value.intVal)
 			format =
-				"	mov		%s,	%%rax\n"
+				"	movq	%s,	%%rax\n"
 				"	incq	%s\n"
 			;
 		else
 			format =
 				"	incq	%s\n"
-				"	mov		%s,	%%rax\n"
+				"	movq	%s,	%%rax\n"
 			;
 	}
 	else{
 		if(node->value.intVal)
 			format =
-				"	mov		%s,	%%rax\n"
+				"	movq	%s,	%%rax\n"
 				"	decq	%s\n"
 			;
 		else
 			format =
 				"	decq	%s\n"
-				"	mov		%s,	%%rax\n"
+				"	movq	%s,	%%rax\n"
 			;
 	}
 	int charCount = strlen(format) + (2 * strlen(var->value));
@@ -274,54 +274,54 @@ static const char* GenCompoundAssignment(ASTNode* node){
 	if(node == NULL)	FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
 	const char* id = node->lhs->value.strVal;
 	const char* rhs = GenExpressionAsm(node->rhs);
-	VarEntry* var = FindVar(id, scope);
+	SymEntry* var = FindVar(id, scope);
 	if(var == NULL)		FatalM("Variable not defined!", Line);
 	// val, op, mov -> offset
 	const char* format = NULL;
 	switch(node->op){
-		case A_AssignSum:			format = "%s	add		%%rax,	%s\n	mov		%s,	%%rax\n";				break;
-		case A_AssignDifference:	format = "%s	sub		%%rax,	%s\n	mov		%s,	%%rax\n";				break;
-		case A_AssignProduct:		format = "%s	imul	%s,	%%rax\n	mov		%%rax,	%s\n";					break;
-		case A_AssignBitwiseAnd:	format = "%s	and		%%rax,	%s\n	mov		%s,	%%rax\n";				break;
-		case A_AssignBitwiseXor:	format = "%s	xor		%%rax,	%s\n	mov		%s,	%%rax\n";				break;
-		case A_AssignBitwiseOr:		format = "%s	or		%%rax,	%s\n	mov		%s,	%%rax\n";				break;
+		case A_AssignSum:			format = "%s	add		%%rax,	%s\n	movq	%s,	%%rax\n";				break;
+		case A_AssignDifference:	format = "%s	sub		%%rax,	%s\n	movq	%s,	%%rax\n";				break;
+		case A_AssignProduct:		format = "%s	imul	%s,	%%rax\n	movq	%%rax,	%s\n";					break;
+		case A_AssignBitwiseAnd:	format = "%s	and		%%rax,	%s\n	movq	%s,	%%rax\n";				break;
+		case A_AssignBitwiseXor:	format = "%s	xor		%%rax,	%s\n	movq	%s,	%%rax\n";				break;
+		case A_AssignBitwiseOr:		format = "%s	or		%%rax,	%s\n	movq	%s,	%%rax\n";				break;
 		case A_AssignQuotient:
 			format = 
 				"%s"
-				"	mov		%%rax,	%%rcx\n"
-				"	mov		%s,	%%rax\n"
+				"	movq	%%rax,	%%rcx\n"
+				"	movq	%s,	%%rax\n"
 				"	cqo\n"
 				"	idiv	%%rcx\n"
-				"	mov		%%rax,	%s\n"
+				"	movq	%%rax,	%s\n"
 			;
 			break;
 		case A_AssignModulus:
 			format = 
 				"%s"
-				"	mov		%%rax,	%%rcx\n"
-				"	mov		%s,	%%rax\n"
+				"	movq	%%rax,	%%rcx\n"
+				"	movq	%s,	%%rax\n"
 				"	cqo\n"
 				"	idiv	%%rcx\n"
-				"	mov		%%rdx,	%%rax\n"
-				"	mov		%%rax,	%s\n"
+				"	movq	%%rdx,	%%rax\n"
+				"	movq	%%rax,	%s\n"
 			;
 			break;
 		case A_AssignLeftShift:
 			format = 
 				"%s"
-				"	mov		%%rax,	%%rcx\n"
-				"	mov		%s,	%%rax\n"
+				"	movq	%%rax,	%%rcx\n"
+				"	movq	%s,	%%rax\n"
 				"	shl		%%rcx,	%%rax\n"
-				"	mov		%%rax,	%s\n"
+				"	movq	%%rax,	%s\n"
 			;
 			break;
 		case A_AssignRightShift:
 			format = 
 				"%s"
-				"	mov		%%rax,	%%rcx\n"
-				"	mov		%s,	%%rax\n"
+				"	movq	%%rax,	%%rcx\n"
+				"	movq	%s,	%%rax\n"
 				"	sar		%%rcx,	%%rax\n"
-				"	mov		%%rax,	%s\n"
+				"	movq	%%rax,	%s\n"
 			;
 			break;
 		default:					FatalM("Unexpected operation in compound assignment! (In gen.h)", __LINE__);
@@ -387,15 +387,15 @@ static const char* GenReturnStatementAsm(ASTNode* node){
 	if(node->op != A_Return)	FatalM("Expected Return Statement in function!", Line);
 	if(node->lhs == NULL)
 		return
-			"	mov		$0,		%eax\n"
-			"	mov		%rbp,	%rsp\n"
+			"	movq	$0,		%eax\n"
+			"	movq	%rbp,	%rsp\n"
 			"	pop		%rbp\n"
 			"	ret\n"
 		;
 	const char* innerAsm = GenExpressionAsm(node->lhs);
 	const char* format =
 		"%s"
-		"	mov		%%rbp,	%%rsp\n"
+		"	movq	%%rbp,	%%rsp\n"
 		"	pop		%%rbp\n"
 		"	ret\n"
 	;
@@ -452,12 +452,12 @@ static const char* GenDeclaration(ASTNode* node){
 	char* expr = "";
 	if(node->lhs != NULL){
 		const char* rhs = GenExpressionAsm(node->lhs);
-		const char* format = "%s	mov		%%rax,	%s\n";
+		const char* format = "%s	movq	%%rax,	%s\n";
 		int len = (strlen(format) + strlen(rhs) + strlen(varLoc) + 4);
 		expr = malloc(len * sizeof(char));
 		snprintf(expr, len, format, rhs, varLoc);
 	}
-	InsertVar(node->value.strVal, varLoc, scope);
+	InsertVar(node->value.strVal, varLoc, node->type, scope);
 	return expr;
 }
 
@@ -626,7 +626,7 @@ static const char* GenFunctionAsm(ASTNode* node){
 		"	.globl %s\n"			// Identifier
 		"%s:\n"						// Identifier
 		"	push	%%rbp\n"
-		"	mov		%%rsp,	%%rbp\n"
+		"	movq	%%rsp,	%%rbp\n"
 		"%s"						// Statement ASM
 	;
 	const char* statementAsm = GenBlockAsm(node->lhs);

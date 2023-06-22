@@ -2,39 +2,50 @@
 
 #define CAPACITY 1000
 
-struct VarEntry {
+enum eStructuralType {
+	S_Undefined = 0,
+	S_Variable,
+	S_Function,
+};
+typedef enum eStructuralType StructuralType;
+
+struct SymEntry {
 	const char* key;
 	const char* value;
+	PrimordialType type;
+	StructuralType sType;
 };
-typedef struct VarEntry VarEntry;
+typedef struct SymEntry SymEntry;
 
-struct VarList {
-	VarEntry* item;
-	struct VarList* next;
+typedef struct SymList SymList;
+struct SymList {
+	SymEntry* item;
+	SymList* next;
 };
-typedef struct VarList VarList;
 
-static VarList* MakeVarList(VarEntry* entry, VarList* next){
-	VarList* ret = malloc(sizeof(VarList));
+static SymList* MakeVarList(SymEntry* entry, SymList* next){
+	SymList* ret = malloc(sizeof(SymList));
 	ret->item = entry;
 	ret->next = next;
 	return ret;
 }
 
-static VarEntry* MakeVarEntry(const char* key, const char* val){
-	VarEntry* ret = malloc(sizeof(VarEntry));
+static SymEntry* MakeVarEntry(const char* key, const char* val, PrimordialType type){
+	SymEntry* ret = malloc(sizeof(SymEntry));
 	ret->key = key;
 	ret->value = val;
+	ret->type = type;
+	ret->sType = S_Undefined;
 	return ret;
 }
 
-static VarList*** hashArray;
+static SymList*** hashArray;
 static int* varCount;
 static int maxScope = 5;
 
 static void CreateScope(int scope){
 	while(maxScope <= scope){
-		hashArray	= realloc(hashArray,	(maxScope + 5) * sizeof(VarList**));
+		hashArray	= realloc(hashArray,	(maxScope + 5) * sizeof(SymList**));
 		varCount	= realloc(varCount,		(maxScope + 5) * sizeof(int));
 		stackIndex	= realloc(stackIndex,	(maxScope + 5) * sizeof(int));
 		for(int i = 0; i < 5; i++){
@@ -44,7 +55,7 @@ static void CreateScope(int scope){
 		}
 		maxScope += 5;
 	}
-	hashArray[scope] = malloc(sizeof(VarList*) * CAPACITY);
+	hashArray[scope] = malloc(sizeof(SymList*) * CAPACITY);
 	stackIndex[scope] = scope ? stackIndex[scope - 1] : 0;
 	for(int i = 0; i < CAPACITY; i++)
 		hashArray[scope][i] = NULL;
@@ -52,7 +63,7 @@ static void CreateScope(int scope){
 
 void InitVarTable(){
 	// Allocate with the assumption of a maximum scope depth of 5
-	hashArray	= malloc(sizeof(VarList**) * 5);
+	hashArray	= malloc(sizeof(SymList**) * 5);
 	varCount	= malloc(sizeof(int) * 5);
 	stackIndex	= malloc(sizeof(int) * 5);
 	for (int i = 0; i < 5; i++){
@@ -72,8 +83,8 @@ void DestroyVarTable(int scope){
 	hashArray[scope] = NULL;
 	varCount[scope] = 0;
 }
-VarEntry* FindVar(const char* key, int scope);
-VarEntry* FindLocalVar(const char* key, int scope);
+SymEntry* FindVar(const char* key, int scope);
+SymEntry* FindLocalVar(const char* key, int scope);
 
 static unsigned int hash_oaat(const char* key, int length){
 	int i = 0;
@@ -91,11 +102,11 @@ static unsigned int hash_oaat(const char* key, int length){
 int collisions = 0;
 int trail = 0;
 
-static VarEntry* FindVarPosition(const char* key, int scope, bool strict){
+static SymEntry* FindVarPosition(const char* key, int scope, bool strict){
 	if(hashArray[scope] == NULL)
 		return NULL;
 	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
-	VarList* list = hashArray[scope][hash];
+	SymList* list = hashArray[scope][hash];
 	if (list == NULL)
 		if (scope < 1 || strict)	return NULL;
 		else		return FindVar(key, scope - 1);
@@ -107,22 +118,22 @@ static VarEntry* FindVarPosition(const char* key, int scope, bool strict){
 	return list->item;
 }
 
-VarEntry* FindVar(const char* key, int scope){
+SymEntry* FindVar(const char* key, int scope){
 	return FindVarPosition(key, scope, false);
 }
 
-VarEntry* FindLocalVar(const char* key, int scope){
+SymEntry* FindLocalVar(const char* key, int scope){
 	return FindVarPosition(key, scope, true);
 }
 
-VarList* InsertVar(const char* key, const char* value, int scope){
+SymList* InsertVar(const char* key, const char* value, PrimordialType type, int scope){
 	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
 	if(hashArray[scope] == NULL)
 		return NULL;
-	VarList* list = hashArray[scope][hash];
+	SymList* list = hashArray[scope][hash];
 	if(list == NULL){
 		varCount[scope]++;
-		return hashArray[scope][hash] = MakeVarList(MakeVarEntry(key, value), NULL);
+		return hashArray[scope][hash] = MakeVarList(MakeVarEntry(key, value, type), NULL);
 	}
 	while(list->item->key != key && list->next != NULL){
 		trail++;
@@ -130,7 +141,7 @@ VarList* InsertVar(const char* key, const char* value, int scope){
 	}
 	if(list->item->key != key){
 		varCount[scope]++;
-		return list->next = MakeVarList(MakeVarEntry(key, value), NULL);
+		return list->next = MakeVarList(MakeVarEntry(key, value, type), NULL);
 	}
 	list->item->value = value;
 	return list;
