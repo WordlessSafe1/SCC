@@ -16,6 +16,7 @@ static Token* Tokenize(const char* str){
 	else if(streq(str, ";"))		token->type = T_Semicolon;
 	else if(streq(str, "int"))		token->type = T_Int;
 	else if(streq(str, "char"))		token->type = T_Char;
+	else if(streq(str, "void"))		token->type = T_Void;
 	else if(streq(str, "-"))		token->type = T_Minus;
 	else if(streq(str, "!"))		token->type = T_Bang;
 	else if(streq(str, "~"))		token->type = T_Tilde;

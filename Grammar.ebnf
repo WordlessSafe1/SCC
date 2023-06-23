@@ -25,7 +25,9 @@
 <bit_shift_expr>		::= <additive_expr> { ( "<<" | ">>" ) <additive_expr> }
 <additive_expr>			::= <term> { ( '+' | '-' ) <term> }
 <term>					::= <factor> { ( '*' | '/' | '%' ) <factor> }
-<factor>				::= <unary_op> <factor> | ( "++" | "--" ) <id> | <id> ( "++" | "--" ) | <id> | <int> | '(' <expression> ')'
+<factor>				::= <unary_op> <factor> | ( "++" | "--" ) <id> | <id> ( "++" | "--" )
+							| <id> | <int> | <function_call> | '(' <expression> ')'
+<function_call>			::= <id> '(' ')'
 
 <unary_op>				::= '~' | '!' | '-'
 <compound_assign_op>	::= '+' | '-' | '*' | '/' | '%' | "<<" | ">>" | '&' | '^' | '|'

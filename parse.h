@@ -20,7 +20,6 @@ PrimordialType GetType(Token* t){
 
 ASTNode* ParseFactor(){
 	Token* tok = GetToken();
-
 	switch(tok->type){
 		case T_LitInt:{
 			PrimordialType type = tok->value.intVal >= 0 && tok->value.intVal < 256 ? P_Char : P_Int;
@@ -31,6 +30,20 @@ ASTNode* ParseFactor(){
 		case T_Tilde:		return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	FlexNULL());
 		case T_Semicolon:	ungetc(';', fptr); return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
 		case T_Identifier:{
+			// Function call
+			if(PeekToken()->type == T_OpenParen){
+				GetToken();
+				if(GetToken()->type != T_CloseParen)	FatalM("Missing close parenthesis in function call!", Line);
+				SymEntry* func = FindFunc(tok->value.strVal);
+				PrimordialType type = P_Undefined;
+				if(func == NULL)
+					WarnM("Implicit function declaration!", Line);
+				else
+					type = func->type;
+				return MakeASTLeaf(A_FunctionCall, type, FlexStr(tok->value.strVal));
+				FatalM("Function calls not yet supported! (In parse.h)", __LINE__);
+			}
+			// Variable Reference
 			SymEntry* varInfo = FindVar(tok->value.strVal, scope);
 			PrimordialType type = varInfo == NULL ? P_Undefined : varInfo->type;
 			ASTNode* ref = MakeASTLeaf(A_VarRef, type, FlexStr(tok->value.strVal));
@@ -381,7 +394,7 @@ ASTNode* ParseStatement(){
 	ASTNode* expr = NULL;
 	switch(tok->type){
 		case T_Char:
-		case T_Int:		expr = ParseDeclaration();	break;
+		case T_Int:			expr = ParseDeclaration();	break;
 		default:			expr = ParseExpression();	break;
 	}
 	if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon!", Line);
@@ -400,7 +413,8 @@ ASTNode* ParseBlock(){
 }
 
 ASTNode* ParseFunction(){
-	if(GetType(GetToken()) == P_Undefined)	FatalM("Invalid function declaration; Expected typename.", Line);
+	PrimordialType type = GetType(GetToken());
+	if(type == P_Undefined)					FatalM("Invalid function declaration; Expected typename.", Line);
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)			FatalM("Invalid function declaration; Expected identifier.", Line);
 	int idLen = strlen(tok->value.strVal) + 1;
@@ -408,9 +422,14 @@ ASTNode* ParseFunction(){
 	strncpy(idStr,tok->value.strVal, idLen);
 	if(GetToken()->type != T_OpenParen)		FatalM("Invalid function declaration; Expected open parenthesis '('.", Line);
 	if(GetToken()->type != T_CloseParen)	FatalM("Invalid function declaration; Expected close parenthesis ')'.", Line);
+	InsertFunc(idStr, type);
+	if(PeekToken()->type == T_Semicolon){
+		GetToken();
+		return MakeASTLeaf(A_Function, type, FlexStr(idStr));
+	}
 	if(PeekToken()->type != T_OpenBrace)	FatalM("Invalid function declaration; Expected open brace '{'.", Line);
 	ASTNode* block = ParseBlock();
-	return MakeASTUnary(A_Function, block, FlexStr(idStr));
+	return MakeASTNode(A_Function, type, block, NULL, NULL, FlexStr(idStr));
 	// return MakeASTUnary(A_Function, stmt, 0, identifier->value.strVal);
 }
 

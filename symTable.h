@@ -23,7 +23,7 @@ struct SymList {
 	SymList* next;
 };
 
-static SymList* MakeVarList(SymEntry* entry, SymList* next){
+static SymList* MakeSymList(SymEntry* entry, SymList* next){
 	SymList* ret = malloc(sizeof(SymList));
 	ret->item = entry;
 	ret->next = next;
@@ -35,7 +35,16 @@ static SymEntry* MakeVarEntry(const char* key, const char* val, PrimordialType t
 	ret->key = key;
 	ret->value = val;
 	ret->type = type;
-	ret->sType = S_Undefined;
+	ret->sType = S_Variable;
+	return ret;
+}
+
+static SymEntry* MakeFuncEntry(const char* key, const char* val, PrimordialType type){
+	SymEntry* ret = malloc(sizeof(SymEntry));
+	ret->key = key;
+	ret->value = val;
+	ret->type = type;
+	ret->sType = S_Function;
 	return ret;
 }
 
@@ -100,7 +109,6 @@ static unsigned int hash_oaat(const char* key, int length){
 	return hash;
 }
 int collisions = 0;
-int trail = 0;
 
 static SymEntry* FindVarPosition(const char* key, int scope, bool strict){
 	if(hashArray[scope] == NULL)
@@ -110,9 +118,9 @@ static SymEntry* FindVarPosition(const char* key, int scope, bool strict){
 	if (list == NULL)
 		if (scope < 1 || strict)	return NULL;
 		else		return FindVar(key, scope - 1);
-	while(list->item->key != key && list->next != NULL)
+	while((!streq(list->item->key, key) || list->item->sType != S_Variable) && list->next != NULL)
 		list = list->next;
-	if(!streq(list->item->key, key))
+	if(!streq(list->item->key, key) || list->item->sType != S_Variable)
 		if(scope < 1 || strict)	return NULL;
 		else		return FindVar(key, scope - 1);
 	return list->item;
@@ -133,18 +141,44 @@ SymList* InsertVar(const char* key, const char* value, PrimordialType type, int 
 	SymList* list = hashArray[scope][hash];
 	if(list == NULL){
 		varCount[scope]++;
-		return hashArray[scope][hash] = MakeVarList(MakeVarEntry(key, value, type), NULL);
+		return hashArray[scope][hash] = MakeSymList(MakeVarEntry(key, value, type), NULL);
 	}
-	while(list->item->key != key && list->next != NULL){
-		trail++;
+	while((!streq(list->item->key, key) || list->item->sType != S_Variable)&& list->next != NULL)
 		list = list->next;
-	}
-	if(list->item->key != key){
+	if(!streq(list->item->key, key)){
 		varCount[scope]++;
-		return list->next = MakeVarList(MakeVarEntry(key, value, type), NULL);
+		return list->next = MakeSymList(MakeVarEntry(key, value, type), NULL);
 	}
 	list->item->value = value;
 	return list;
+}
+
+SymList* InsertFunc(const char* key, PrimordialType type){
+	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
+	if(hashArray[0] == NULL)
+		return NULL;
+	SymList* list = hashArray[0][hash];
+	if(list == NULL)
+		return hashArray[0][hash] = MakeSymList(MakeFuncEntry(key, NULL, type), NULL);
+	while((!streq(list->item->key, key) || list->item->sType != S_Function) && list->next != NULL)
+		list = list->next;
+	if(!streq(list->item->key, key))
+		return list->next = MakeSymList(MakeFuncEntry(key, NULL, type), NULL);
+	return list;
+}
+
+SymEntry* FindFunc(const char* key){
+	if(hashArray[0] == NULL)
+		return NULL;
+	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
+	SymList* list = hashArray[0][hash];
+	if(list == NULL)
+		return NULL;
+	while((!streq(list->item->key, key) || list->item->sType != S_Function) && list->next != NULL)
+		list = list->next;
+	if(!streq(list->item->key, key) || list->item->sType != S_Function)
+		return NULL;
+	return list->item;
 }
 
 int GetLocalVarCount(int scope){

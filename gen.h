@@ -22,6 +22,24 @@ static const char* GenLitInt(ASTNode* node){
 	return str;
 }
 
+static const char* GenFuncCall(ASTNode* node){
+	if(node == NULL)				FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
+	if(node->op != A_FunctionCall)	FatalM("Expected variable reference in expression! (In gen.h)", __LINE__);
+	const char* id = node->value.strVal;
+	int pCount = 0;
+	int offset = 8 * (pCount < 4 ? 4 : pCount);
+	offset = offset % 16 ? (offset / 16 + 1) * 16 : offset;
+	const char* format =
+		"	subq	$%d,	%%rsp\n"
+		"	call	%s\n"
+		"	addq	$%d,	%%rsp\n"
+	;
+	int charCount = strlen(format) + (2 * intlen(offset)) + strlen(id) + 1;
+	char* buffer = malloc(charCount * sizeof(char));
+	snprintf(buffer, charCount, format, offset, id, offset);
+	return buffer;
+}
+
 static const char* GenVarRef(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
 	if(node->op != A_VarRef)	FatalM("Expected variable reference in expression! (In gen.h)", __LINE__);
@@ -339,6 +357,7 @@ static const char* GenExpressionAsm(ASTNode* node){
 		case A_VarRef:				return GenVarRef(node);
 		case A_Ternary:				return GenTernary(node);
 		case A_Assign:				return GenAssignment(node);
+		case A_FunctionCall:		return GenFuncCall(node);
 		// Compound Assignment
 		case A_AssignSum:
 		case A_AssignDifference:
@@ -390,7 +409,7 @@ static const char* GenReturnStatementAsm(ASTNode* node){
 			"	movq	$0,		%eax\n"
 			"	movq	%rbp,	%rsp\n"
 			"	pop		%rbp\n"
-			"	ret\n"
+			"	jmp		7f\n"
 		;
 	const char* innerAsm = GenExpressionAsm(node->lhs);
 	const char* format =
@@ -622,17 +641,17 @@ static const char* GenFunctionAsm(ASTNode* node){
 	if(node == NULL)				FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op != A_Function)		FatalM("Expected function at top level statement!", Line);
 	if(node->value.strVal == NULL)	FatalM("Expected a function identifier, got NULL instead.", Line);
+	if(node->lhs == NULL)			return "";
 	const char* format = 
 		"	.globl %s\n"			// Identifier
 		"%s:\n"						// Identifier
 		"	push	%%rbp\n"
 		"	movq	%%rsp,	%%rbp\n"
 		"%s"						// Statement ASM
+		"7:\n"
+		"	ret\n"
 	;
 	const char* statementAsm = GenBlockAsm(node->lhs);
-	if(statementAsm == NULL){
-		FatalM("Implicit returns not yet handled. In gen.h", __LINE__);
-	}
 	int charCount =
 		(2 * strlen(node->value.strVal))	// identifier x2
 		+ strlen(statementAsm)				// Inner ASM

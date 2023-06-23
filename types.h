@@ -13,15 +13,16 @@ enum ePrimordialType {
 	P_Void,
 	P_Char,
 	P_Int,
+	P_Long,
 };
 typedef enum ePrimordialType PrimordialType;
 
 enum eTokenCategory {
 	T_Undefined = 0,
-	// T_Type,
-	T_Int,
-	T_Char,
 	T_Void,
+	T_Char,
+	T_Int,
+	T_Long,
 	T_Identifier,
 	T_OpenParen,
 	T_CloseParen,
@@ -125,12 +126,14 @@ enum eNodeType {
 	A_AssignBitwiseAnd,
 	A_AssignBitwiseXor,
 	A_AssignBitwiseOr,
+	A_FunctionCall,
 };
 typedef enum eNodeType NodeType;
 
 union flexible_value {
 	int intVal;
 	const char* strVal;
+	void* ptrVal;
 };
 typedef union flexible_value FlexibleValue;
 
@@ -168,7 +171,7 @@ ASTNodeList* MakeASTNodeList(){
 ASTNodeList* AddNodeToASTList(ASTNodeList* list, ASTNode* node){
 	while(list->count >= list->size){
 		list->size += 10;
-		list->nodes = realloc(list->nodes, list->size);
+		list->nodes = realloc(list->nodes, list->size * sizeof(ASTNode*));
 	}
 	list->nodes[list->count++] = node;
 	return list;
@@ -229,6 +232,22 @@ FlexibleValue FlexInt(int num){
 
 FlexibleValue FlexNULL(){
 	return FlexStr(NULL);
+}
+
+FlexibleValue FlexPtr(void* ptr){
+	FlexibleValue f = { .ptrVal = ptr };
+	return f;
+}
+
+static int GetPrimSize(PrimordialType prim){
+	switch(prim){
+		case P_Undefined:	return 0;
+		case P_Void:		return 0;
+		case P_Char:		return 1;
+		case P_Int:			return 4;
+		case P_Long:		return 8;
+		default:			FatalM("Unhandled primordial in GetPrimSize()! (In types.h)", __LINE__);
+	}
 }
 
 int CheckTypeCompatibility(PrimordialType lhs, PrimordialType rhs){
