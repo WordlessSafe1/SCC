@@ -73,6 +73,7 @@ enum eTokenCategory {
 	T_PipeEqual,
 	T_PlusPlus,
 	T_MinusMinus,
+	T_Comma,
 };
 typedef enum eTokenCategory TokenType;
 
@@ -137,6 +138,14 @@ union flexible_value {
 };
 typedef union flexible_value FlexibleValue;
 
+typedef struct param Parameter;
+struct param {
+	const char* id;
+	PrimordialType type;
+	Parameter* next;
+	Parameter* prev;
+};
+
 struct token {
 	TokenType type;
 	FlexibleValue value;
@@ -151,6 +160,7 @@ struct ast_node {
 	struct ast_node *rhs;
 	struct ast_node_list *list;
 	FlexibleValue value;
+	FlexibleValue secondaryValue;
 };
 typedef struct ast_node ASTNode;
 
@@ -160,6 +170,8 @@ struct ast_node_list {
 	int size;
 };
 typedef struct ast_node_list ASTNodeList;
+
+FlexibleValue FlexNULL();
 
 ASTNodeList* MakeASTNodeList(){
 	ASTNodeList* list = malloc(sizeof(ASTNodeList));
@@ -177,7 +189,7 @@ ASTNodeList* AddNodeToASTList(ASTNodeList* list, ASTNode* node){
 	return list;
 }
 
-ASTNode* MakeASTNodeExtended(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value){
+ASTNode* MakeASTNodeEx(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value, FlexibleValue secondValue){
 	ASTNode* node = malloc(sizeof(ASTNode));
 	if(node == NULL)
 		FatalM("Failed to malloc in MakeASTNode()", Line);
@@ -187,6 +199,7 @@ ASTNode* MakeASTNodeExtended(int op, PrimordialType type, ASTNode* lhs, ASTNode*
 	node->mid = mid;
 	node->rhs = rhs;
 	node->value = value;
+	node->secondaryValue = secondValue;
 	return node;
 }
 
@@ -200,6 +213,7 @@ ASTNode* MakeASTNode(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, AS
 	node->mid = mid;
 	node->rhs = rhs;
 	node->value = value;
+	node->secondaryValue = FlexNULL();
 	return node;
 }
 
@@ -230,13 +244,13 @@ FlexibleValue FlexInt(int num){
 	return f;
 }
 
-FlexibleValue FlexNULL(){
-	return FlexStr(NULL);
-}
-
 FlexibleValue FlexPtr(void* ptr){
 	FlexibleValue f = { .ptrVal = ptr };
 	return f;
+}
+
+FlexibleValue FlexNULL(){
+	return FlexPtr(NULL);
 }
 
 static int GetPrimSize(PrimordialType prim){
@@ -264,6 +278,20 @@ PrimordialType GetWidestType(PrimordialType lhs, PrimordialType rhs){
 		case TYPES_WIDEN_LHS:		return rhs;
 		default:					return lhs;
 	}
+}
+
+Parameter* MakeParam(const char* id, PrimordialType type, Parameter* prev){
+	Parameter* p = malloc(sizeof(Parameter));
+	p->id = id;
+	p->type = type;
+	p->prev = prev;
+	if (prev != NULL) {
+		p->next = prev->next;
+		prev->next = p;
+	}
+	else
+		p->next = NULL;
+	return p;
 }
 
 #define NodeTypesCompatible(lhs, rhs) CheckTypeCompatibility(lhs->type, rhs->type)

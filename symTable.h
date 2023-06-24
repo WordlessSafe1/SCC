@@ -11,7 +11,7 @@ typedef enum eStructuralType StructuralType;
 
 struct SymEntry {
 	const char* key;
-	const char* value;
+	FlexibleValue value;
 	PrimordialType type;
 	StructuralType sType;
 };
@@ -33,13 +33,13 @@ static SymList* MakeSymList(SymEntry* entry, SymList* next){
 static SymEntry* MakeVarEntry(const char* key, const char* val, PrimordialType type){
 	SymEntry* ret = malloc(sizeof(SymEntry));
 	ret->key = key;
-	ret->value = val;
+	ret->value = FlexStr(val);
 	ret->type = type;
 	ret->sType = S_Variable;
 	return ret;
 }
 
-static SymEntry* MakeFuncEntry(const char* key, const char* val, PrimordialType type){
+static SymEntry* MakeFuncEntry(const char* key, FlexibleValue val, PrimordialType type){
 	SymEntry* ret = malloc(sizeof(SymEntry));
 	ret->key = key;
 	ret->value = val;
@@ -149,21 +149,21 @@ SymList* InsertVar(const char* key, const char* value, PrimordialType type, int 
 		varCount[scope]++;
 		return list->next = MakeSymList(MakeVarEntry(key, value, type), NULL);
 	}
-	list->item->value = value;
+	list->item->value = FlexStr(value);
 	return list;
 }
 
-SymList* InsertFunc(const char* key, PrimordialType type){
+SymList* InsertFunc(const char* key, FlexibleValue params, PrimordialType type){
 	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
 	if(hashArray[0] == NULL)
 		return NULL;
 	SymList* list = hashArray[0][hash];
 	if(list == NULL)
-		return hashArray[0][hash] = MakeSymList(MakeFuncEntry(key, NULL, type), NULL);
+		return hashArray[0][hash] = MakeSymList(MakeFuncEntry(key, params, type), NULL);
 	while((!streq(list->item->key, key) || list->item->sType != S_Function) && list->next != NULL)
 		list = list->next;
 	if(!streq(list->item->key, key))
-		return list->next = MakeSymList(MakeFuncEntry(key, NULL, type), NULL);
+		return list->next = MakeSymList(MakeFuncEntry(key, params, type), NULL);
 	return list;
 }
 

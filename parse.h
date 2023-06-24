@@ -33,14 +33,30 @@ ASTNode* ParseFactor(){
 			// Function call
 			if(PeekToken()->type == T_OpenParen){
 				GetToken();
-				if(GetToken()->type != T_CloseParen)	FatalM("Missing close parenthesis in function call!", Line);
 				SymEntry* func = FindFunc(tok->value.strVal);
+				if (func == NULL)
+					FatalM("Implicit function declarations not yet supported! (In parse.h)", Line);
+				Parameter* paramPrototype = (Parameter*)func->value.ptrVal;
+				ASTNodeList* params = MakeASTNodeList();
+				while(PeekToken()->type != T_CloseParen){
+					if(PeekToken()->type == T_Comma)
+						GetToken();
+					if(paramPrototype == NULL)	FatalM("Too many arguments in function call!", Line);
+					ASTNode* expr = ParseExpression();
+					if(expr == NULL)	FatalM("Invalid expression used as parameter!", Line);
+					int typeCheck = CheckTypeCompatibility(paramPrototype->type, expr->type);
+					if(typeCheck != TYPES_COMPATIBLE && typeCheck != TYPES_WIDEN_RHS)	FatalM("Incompatible type in function call!", Line);
+					paramPrototype = paramPrototype->next;
+					AddNodeToASTList(params, expr);
+				}
+				if(paramPrototype != NULL)				FatalM("Too few arguments in function call!", Line);
+				if(GetToken()->type != T_CloseParen)	FatalM("Missing close parenthesis in function call!", Line);
 				PrimordialType type = P_Undefined;
 				if(func == NULL)
 					WarnM("Implicit function declaration!", Line);
 				else
 					type = func->type;
-				return MakeASTLeaf(A_FunctionCall, type, FlexStr(tok->value.strVal));
+				return MakeASTNodeEx(A_FunctionCall, type, NULL, NULL, NULL, FlexStr(tok->value.strVal), FlexPtr(params));
 				FatalM("Function calls not yet supported! (In parse.h)", __LINE__);
 			}
 			// Variable Reference
@@ -421,15 +437,41 @@ ASTNode* ParseFunction(){
 	char* idStr = malloc(idLen * sizeof(char));
 	strncpy(idStr,tok->value.strVal, idLen);
 	if(GetToken()->type != T_OpenParen)		FatalM("Invalid function declaration; Expected open parenthesis '('.", Line);
+	Parameter* params = NULL;
+	while(PeekToken()->type != T_CloseParen){
+		if(PeekToken()->type == T_Comma)
+			GetToken();
+		PrimordialType paramType = GetType(GetToken());
+		if(paramType == P_Undefined)		FatalM("Invalid type in parameter list!", Line);
+		Token* t = GetToken();
+		if(t->type != T_Identifier)			FatalM("Expected identifier in parameter list!", Line);
+		int charCount = strlen(t->value.strVal) + 1;
+		char* paramName = malloc(charCount * sizeof(char));
+		paramName = strncpy(paramName, t->value.strVal, charCount);
+		free(t);
+		params = MakeParam(paramName, paramType, params);
+	}
+	if(params != NULL)
+		while (params->prev != NULL)
+			params = params->prev;
 	if(GetToken()->type != T_CloseParen)	FatalM("Invalid function declaration; Expected close parenthesis ')'.", Line);
-	InsertFunc(idStr, type);
+	InsertFunc(idStr, FlexPtr(params), type);
 	if(PeekToken()->type == T_Semicolon){
 		GetToken();
-		return MakeASTLeaf(A_Function, type, FlexStr(idStr));
+		return MakeASTNodeEx(A_Function, type, NULL, NULL, NULL, FlexStr(idStr), FlexPtr(params));
+	}
+	EnterScope();
+	if(params != NULL){
+		Parameter* p = params;
+		do {
+			InsertVar(p->id, NULL, p->type, scope);
+			p = p->next;
+		} while( p != NULL);
 	}
 	if(PeekToken()->type != T_OpenBrace)	FatalM("Invalid function declaration; Expected open brace '{'.", Line);
 	ASTNode* block = ParseBlock();
-	return MakeASTNode(A_Function, type, block, NULL, NULL, FlexStr(idStr));
+	ExitScope();
+	return MakeASTNodeEx(A_Function, type, block, NULL, NULL, FlexStr(idStr), FlexPtr(params));
 	// return MakeASTUnary(A_Function, stmt, 0, identifier->value.strVal);
 }
 

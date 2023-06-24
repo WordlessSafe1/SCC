@@ -11,6 +11,26 @@ static const char* GenStatementAsm(ASTNode* node);
 const char* GenerateAsmFromList(ASTNodeList* list);
 
 
+static char* CalculateParamPosition(int n){
+	if(n > 3){
+		const char* format = "%d(%%rbp)";
+		const int charCount = strlen(format) + intlen(n) + 1;
+		char* buffer = calloc(charCount, sizeof(char));
+		snprintf(buffer, charCount, format, n);
+		return buffer;
+	}
+	const char* loc = NULL;
+	switch(n){
+		case 0:		loc = "%rcx";	break;
+		case 1:		loc = "%rdx";	break;
+		case 2:		loc = "%r8";		break;
+		case 3:		loc = "%r9";		break;
+	}
+	char* buffer = calloc((strlen(loc) + 1), sizeof(char));
+	strncpy(buffer, loc, strlen(loc) + 1);
+	return buffer;
+}
+
 static const char* GenLitInt(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op != A_LitInt)	FatalM("Expected literal int in expression!", Line);
@@ -26,17 +46,34 @@ static const char* GenFuncCall(ASTNode* node){
 	if(node == NULL)				FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
 	if(node->op != A_FunctionCall)	FatalM("Expected variable reference in expression! (In gen.h)", __LINE__);
 	const char* id = node->value.strVal;
-	int pCount = 0;
+	ASTNodeList* params = node->secondaryValue.ptrVal;
+	int pCount = params->count;
+	char* paramInit = calloc(1, sizeof(char));
+	for (int i = pCount - 1; i >= 0; i--) {
+		const char* const format = i > 3
+			? "%s	push	%%rax\n"
+			: "%s	movq	%%rax,	%s\n";
+		char* pos = CalculateParamPosition(i);
+		const char* inner = GenExpressionAsm(params->nodes[i]);
+		const int charCount = strlen(inner) + strlen(format) + strlen(pos) + 1;
+		char* buffer = malloc(charCount * sizeof(char));
+		snprintf(buffer, charCount, format, inner, pos);
+		paramInit = realloc(paramInit, strlen(paramInit) + charCount);
+		strncat(paramInit, buffer, strlen(paramInit) + charCount);
+		free(pos);
+		free(buffer);
+	}
 	int offset = 8 * (pCount < 4 ? 4 : pCount);
 	offset = offset % 16 ? (offset / 16 + 1) * 16 : offset;
 	const char* format =
 		"	subq	$%d,	%%rsp\n"
+		"%s"	// ParamInit
 		"	call	%s\n"
 		"	addq	$%d,	%%rsp\n"
 	;
-	int charCount = strlen(format) + (2 * intlen(offset)) + strlen(id) + 1;
+	int charCount = strlen(format) + strlen(paramInit) + (2 * intlen(offset)) + strlen(id) + 1;
 	char* buffer = malloc(charCount * sizeof(char));
-	snprintf(buffer, charCount, format, offset, id, offset);
+	snprintf(buffer, charCount, format, offset, paramInit, id, offset);
 	return buffer;
 }
 
@@ -47,7 +84,7 @@ static const char* GenVarRef(ASTNode* node){
 	SymEntry* var = FindVar(id, scope);
 	if(var == NULL)				FatalM("Variable not defined!", Line);
 	const char* format = "	movq	%s,	%%rax\n";
-	int charCount = strlen(format) + strlen(var->value) + 1;
+	int charCount = strlen(format) + strlen(var->value.strVal) + 1;
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, var->value);
 	return str;
@@ -245,7 +282,7 @@ static const char* GenAssignment(ASTNode* node){
 	SymEntry* var = FindVar(id, scope);
 	if(var == NULL)				FatalM("Variable not defined!", Line);
 	const char* format = "%s	movq	%%rax,	%s\n";
-	int charCount = strlen(format) + strlen(rhs) + strlen(var->value);
+	int charCount = strlen(format) + strlen(rhs) + strlen(var->value.strVal);
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, rhs, var->value);
 	return str;
@@ -282,7 +319,7 @@ static const char* GenIncDec(ASTNode* node){
 				"	movq	%s,	%%rax\n"
 			;
 	}
-	int charCount = strlen(format) + (2 * strlen(var->value));
+	int charCount = strlen(format) + (2 * strlen(var->value.strVal));
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, var->value, var->value);
 	return str;
@@ -344,7 +381,7 @@ static const char* GenCompoundAssignment(ASTNode* node){
 			break;
 		default:					FatalM("Unexpected operation in compound assignment! (In gen.h)", __LINE__);
 	}
-	int charCount = strlen(format) + strlen(rhs) + (2 * strlen(var->value)) + 1;
+	int charCount = strlen(format) + strlen(rhs) + (2 * strlen(var->value.strVal)) + 1;
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, rhs, var->value, var->value);
 	return str;
@@ -407,16 +444,12 @@ static const char* GenReturnStatementAsm(ASTNode* node){
 	if(node->lhs == NULL)
 		return
 			"	movq	$0,		%eax\n"
-			"	movq	%rbp,	%rsp\n"
-			"	pop		%rbp\n"
 			"	jmp		7f\n"
 		;
 	const char* innerAsm = GenExpressionAsm(node->lhs);
 	const char* format =
 		"%s"
-		"	movq	%%rbp,	%%rsp\n"
-		"	pop		%%rbp\n"
-		"	ret\n"
+		"	jmp		7f\n"
 	;
 	int charCount = strlen(innerAsm) + strlen(format) + 1;
 	char* str = malloc(charCount * sizeof(char));
@@ -642,24 +675,80 @@ static const char* GenFunctionAsm(ASTNode* node){
 	if(node->op != A_Function)		FatalM("Expected function at top level statement!", Line);
 	if(node->value.strVal == NULL)	FatalM("Expected a function identifier, got NULL instead.", Line);
 	if(node->lhs == NULL)			return "";
+	Parameter* params = (Parameter*)node->secondaryValue.ptrVal;
+	int paramCount = 0;
+	if (params != NULL) {
+		paramCount++;
+		do {
+			paramCount++;
+			params = params->next;
+		} while (params->next != NULL);
+	}
+	if(paramCount)
+		EnterScope();
 	const char* format = 
 		"	.globl %s\n"			// Identifier
 		"%s:\n"						// Identifier
 		"	push	%%rbp\n"
 		"	movq	%%rsp,	%%rbp\n"
+		"%s"						// Stack Allocation ASM
+		"%s"						// Parameter Placement ASM
 		"%s"						// Statement ASM
+		"%s"						// Stack Deallocation ASM
 		"7:\n"
+		"	movq	%%rbp,	%%rsp\n"
+		"	pop		%%rbp\n"
 		"	ret\n"
 	;
+	char* paramPlacement = calloc(1, sizeof(char));
+	for(int i = paramCount - 1; i >= 0; i--){
+		char* paramPos = CalculateParamPosition(i);
+		char* varLoc = NULL;
+		if(i > 3)
+			varLoc = paramPos;
+		else {
+			int offset = stackIndex[scope] -= 8;
+			const char* const format = "%d(%%rbp)";
+			int charCount = intlen(offset) + strlen(format) + 1;
+			varLoc = malloc(charCount * sizeof(char));
+			snprintf(varLoc, charCount, format, offset);
+		}
+		InsertVar(params->id, varLoc, params->type, scope);
+		const char* const format = "	movq	%s,	%s\n";
+		const int charCount = strlen(format) + strlen(varLoc) + strlen(paramPos) + 1;
+		char* buffer = calloc(charCount, sizeof(char));
+		snprintf(buffer, charCount, format, paramPos, varLoc);
+		free(paramPos);
+		paramPlacement = realloc(paramPlacement, charCount + strlen(paramPlacement));
+		strncat(paramPlacement, buffer, charCount + strlen(paramPlacement));
+		free(buffer);
+		params = params->prev;
+	}
+	char* stackAlloc = calloc(1, sizeof(char));
+	char* stackDealloc = calloc(1, sizeof(char));
+	if(paramCount){
+			const char* const format = "	subq	$%d,	%%rsp\n";
+			const int allocSize = paramCount * 8;
+			const int charCount = strlen(format) + intlen(allocSize) + 1;
+			stackAlloc = malloc(charCount * sizeof(char));
+			snprintf(stackAlloc, charCount, format, allocSize);
+	}
 	const char* statementAsm = GenBlockAsm(node->lhs);
 	int charCount =
 		(2 * strlen(node->value.strVal))	// identifier x2
+		+ strlen(stackAlloc)				// Stack Allocation ASM
+		+ strlen(paramPlacement)			// Parameter Placement ASM
 		+ strlen(statementAsm)				// Inner ASM
 		+ strlen(format)					// format
+		+ strlen(stackDealloc)				// Stack Deallocation ASM
 		+ 1									// \0
 	;
 	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, format, node->value.strVal, node->value.strVal, statementAsm);
+	snprintf(str, charCount, format, node->value.strVal, node->value.strVal, stackAlloc, paramPlacement, statementAsm, stackDealloc);
+	free(paramPlacement);
+	free(stackAlloc);
+	if(paramCount)
+		ExitScope();
 	return str;
 }
 

@@ -1,9 +1,9 @@
 <comment>				::= "//" { <letter> | <digit> | <symbol> | ' ' | '\t' }
 <program>				::= { <function> }
-<function>				::= "int" <id> "(" ")" ( <block> | ';' )
+<function>				::= <type> <id> "(" [ <type> <id> { ',' <type> <id> } ] ")" ( <block> | ';' )
 <block_item>			::= <statement> | <declaration>
 <block>					::= '{' [ <block_item> ] '}'
-<declaration>			::= "int" <id> [ '=' <expression> ] ';'
+<declaration>			::= <type> <id> [ '=' <expression> ] ';'
 <statement>				::= <block> | <return_statement> | <if_statement> | <control_statement> | [ <expression> ] ';'
 <control_statement>		::= ( "break" | "continue" ) ';'
 <if_statement>			::= "if" '(' <expression> ')' <statement> [ "else" <statement> ]
@@ -11,7 +11,7 @@
 <while_loop>			::= "while" '(' <expression> ')' <statement>
 <do_loop>				::= "do" <statement> "while" '(' <expression> ')' ';'
 <for_loop>				::= "for" '(' ( <declaration> | [ <expression> ] ';' ) [ <expression> ] ';' [ <expression> ] ')' <statement>
-<return_statement>		::= "return" <int> ';'
+<return_statement>		::= "return" [ <expression> ] ';'
 <expression>			::= <assignment_expr>
 <assignment_expr>		::= <id> [ <compound_assign_op> ] '=' <expression> | <conditional_expr>
 <conditional_expr>		::= <logical_or_expr> [ '?' [ <expression> ] ':' <conditional_expr> ]
@@ -27,8 +27,9 @@
 <term>					::= <factor> { ( '*' | '/' | '%' ) <factor> }
 <factor>				::= <unary_op> <factor> | ( "++" | "--" ) <id> | <id> ( "++" | "--" )
 							| <id> | <int> | <function_call> | '(' <expression> ')'
-<function_call>			::= <id> '(' ')'
+<function_call>			::= <id> '(' [ <expression> { ',' <expression> } ] ')'
 
+<type>					::= "void" | "char" | "int" | "long"
 <unary_op>				::= '~' | '!' | '-'
 <compound_assign_op>	::= '+' | '-' | '*' | '/' | '%' | "<<" | ">>" | '&' | '^' | '|'
 
