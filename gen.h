@@ -16,7 +16,7 @@ static char* CalculateParamPosition(int n){
 		const char* format = "%d(%%rbp)";
 		const int charCount = strlen(format) + intlen(n) + 1;
 		char* buffer = calloc(charCount, sizeof(char));
-		snprintf(buffer, charCount, format, n);
+		snprintf(buffer, charCount, format, 8 * (n - 2));
 		return buffer;
 	}
 	const char* loc = NULL;
@@ -718,9 +718,10 @@ static const char* GenFunctionAsm(ASTNode* node){
 		const int charCount = strlen(format) + strlen(varLoc) + strlen(paramPos) + 1;
 		char* buffer = calloc(charCount, sizeof(char));
 		snprintf(buffer, charCount, format, paramPos, varLoc);
-		free(paramPos);
-		paramPlacement = realloc(paramPlacement, charCount + strlen(paramPlacement));
-		strncat(paramPlacement, buffer, charCount + strlen(paramPlacement));
+		if(i < 4){
+			paramPlacement = realloc(paramPlacement, charCount + strlen(paramPlacement));
+			strncat(paramPlacement, buffer, charCount + strlen(paramPlacement));
+		}
 		free(buffer);
 		params = params->prev;
 	}
