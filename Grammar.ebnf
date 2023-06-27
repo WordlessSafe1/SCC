@@ -29,8 +29,8 @@
 							| <id> | <int> | <function_call> | '(' <expression> ')'
 <function_call>			::= <id> '(' [ <expression> { ',' <expression> } ] ')'
 
-<type>					::= "void" | "char" | "int" | "long"
-<unary_op>				::= '~' | '!' | '-'
+<type>					::= <type> '*' | "void" | "char" | "int" | "long"
+<unary_op>				::= '~' | '!' | '-' | '*' | '&'
 <compound_assign_op>	::= '+' | '-' | '*' | '/' | '%' | "<<" | ">>" | '&' | '^' | '|'
 
 <id>					::= <letter> { <letter> | <digit> }

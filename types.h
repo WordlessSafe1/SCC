@@ -8,12 +8,17 @@
 #define TYPES_WIDEN_LHS		-1
 #define TYPES_WIDEN_RHS		-2
 
+// Bottom nibble stores level of reference
+// EG:
+// 0x20 = char
+// 0x21 = char*
+// 0x22 = char**
 enum ePrimordialType {
 	P_Undefined = 0,
-	P_Void,
-	P_Char,
-	P_Int,
-	P_Long,
+	P_Void	= 0x10,
+	P_Char	= 0x20,
+	P_Int	= 0x30,
+	P_Long	= 0x40,
 };
 typedef enum ePrimordialType PrimordialType;
 
@@ -128,6 +133,8 @@ enum eNodeType {
 	A_AssignBitwiseXor,
 	A_AssignBitwiseOr,
 	A_FunctionCall,
+	A_AddressOf,
+	A_Dereference,
 };
 typedef enum eNodeType NodeType;
 
@@ -254,6 +261,7 @@ FlexibleValue FlexNULL(){
 }
 
 static int GetPrimSize(PrimordialType prim){
+	if(prim & 0xF)			return 8; // Pointer
 	switch(prim){
 		case P_Undefined:	return 0;
 		case P_Void:		return 0;

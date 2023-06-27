@@ -18,6 +18,65 @@ PrimordialType GetType(Token* t){
 	}
 }
 
+PrimordialType ParseType(){
+	PrimordialType type;
+	switch(PeekToken()->type){
+		case T_Int:		type = P_Int;	break;
+		case T_Char:	type = P_Char;	break;
+		case T_Void:	type = P_Void;	break;
+		case T_Long:	type = P_Long;	break;
+		default:		return P_Undefined;
+	}
+	GetToken();
+	while(PeekToken()->type == T_Asterisk){
+		GetToken();
+		if((type & 0xF) == 0xF)	FatalM("Indirection limit exceeded!", Line);
+		type++;
+	}
+	return type;
+}
+
+ASTNode* ParseFunctionCall(Token* tok){
+	GetToken();
+	SymEntry* func = FindFunc(tok->value.strVal);
+	if (func == NULL)
+		FatalM("Implicit function declarations not yet supported! (In parse.h)", Line);
+	Parameter* paramPrototype = (Parameter*)func->value.ptrVal;
+	ASTNodeList* params = MakeASTNodeList();
+	while(PeekToken()->type != T_CloseParen){
+		if(PeekToken()->type == T_Comma)
+			GetToken();
+		if(paramPrototype == NULL)	FatalM("Too many arguments in function call!", Line);
+		ASTNode* expr = ParseExpression();
+		if(expr == NULL)	FatalM("Invalid expression used as parameter!", Line);
+		int typeCheck = CheckTypeCompatibility(paramPrototype->type, expr->type);
+		if(typeCheck != TYPES_COMPATIBLE && typeCheck != TYPES_WIDEN_RHS)	FatalM("Incompatible type in function call!", Line);
+		paramPrototype = paramPrototype->next;
+		AddNodeToASTList(params, expr);
+	}
+	if(paramPrototype != NULL)				FatalM("Too few arguments in function call!", Line);
+	if(GetToken()->type != T_CloseParen)	FatalM("Missing close parenthesis in function call!", Line);
+	PrimordialType type = P_Undefined;
+	if(func == NULL)
+		WarnM("Implicit function declaration!", Line);
+	else
+		type = func->type;
+	return MakeASTNodeEx(A_FunctionCall, type, NULL, NULL, NULL, FlexStr(tok->value.strVal), FlexPtr(params));
+}
+
+ASTNode* ParseVariableReference(Token* outerTok){
+	SymEntry* varInfo = FindVar(outerTok->value.strVal, scope);
+	PrimordialType type = varInfo == NULL ? P_Undefined : varInfo->type;
+	ASTNode* ref = MakeASTLeaf(A_VarRef, type, FlexStr(outerTok->value.strVal));
+	Token* tok = PeekToken();
+	if(tok->type != T_PlusPlus && tok->type != T_MinusMinus)
+		return ref;
+	tok = GetToken();
+	if(tok->type == T_PlusPlus)
+		return MakeASTUnary(A_Increment, ref, FlexInt(0));
+	return MakeASTUnary(A_Decrement, ref, FlexInt(0));
+}
+
 ASTNode* ParseFactor(){
 	Token* tok = GetToken();
 	switch(tok->type){
@@ -29,48 +88,25 @@ ASTNode* ParseFactor(){
 		case T_Bang:		return MakeASTUnary(A_LogicalNot,			ParseFactor(),	FlexNULL());
 		case T_Tilde:		return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	FlexNULL());
 		case T_Semicolon:	ungetc(';', fptr); return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
-		case T_Identifier:{
-			// Function call
-			if(PeekToken()->type == T_OpenParen){
-				GetToken();
-				SymEntry* func = FindFunc(tok->value.strVal);
-				if (func == NULL)
-					FatalM("Implicit function declarations not yet supported! (In parse.h)", Line);
-				Parameter* paramPrototype = (Parameter*)func->value.ptrVal;
-				ASTNodeList* params = MakeASTNodeList();
-				while(PeekToken()->type != T_CloseParen){
-					if(PeekToken()->type == T_Comma)
-						GetToken();
-					if(paramPrototype == NULL)	FatalM("Too many arguments in function call!", Line);
-					ASTNode* expr = ParseExpression();
-					if(expr == NULL)	FatalM("Invalid expression used as parameter!", Line);
-					int typeCheck = CheckTypeCompatibility(paramPrototype->type, expr->type);
-					if(typeCheck != TYPES_COMPATIBLE && typeCheck != TYPES_WIDEN_RHS)	FatalM("Incompatible type in function call!", Line);
-					paramPrototype = paramPrototype->next;
-					AddNodeToASTList(params, expr);
-				}
-				if(paramPrototype != NULL)				FatalM("Too few arguments in function call!", Line);
-				if(GetToken()->type != T_CloseParen)	FatalM("Missing close parenthesis in function call!", Line);
-				PrimordialType type = P_Undefined;
-				if(func == NULL)
-					WarnM("Implicit function declaration!", Line);
-				else
-					type = func->type;
-				return MakeASTNodeEx(A_FunctionCall, type, NULL, NULL, NULL, FlexStr(tok->value.strVal), FlexPtr(params));
-				FatalM("Function calls not yet supported! (In parse.h)", __LINE__);
-			}
-			// Variable Reference
-			SymEntry* varInfo = FindVar(tok->value.strVal, scope);
-			PrimordialType type = varInfo == NULL ? P_Undefined : varInfo->type;
-			ASTNode* ref = MakeASTLeaf(A_VarRef, type, FlexStr(tok->value.strVal));
-			Token* tok = PeekToken();
-			if(tok->type != T_PlusPlus && tok->type != T_MinusMinus)
-				return ref;
-			tok = GetToken();
-			if(tok->type == T_PlusPlus)
-				return MakeASTUnary(A_Increment, ref, FlexInt(0));
-			return MakeASTUnary(A_Decrement, ref, FlexInt(0));
+		case T_Ampersand:{
+			ASTNode* fctr = ParseFactor();
+			if(fctr->op != A_VarRef)	FatalM("The Address operator may only be used on variable references!", Line);
+			PrimordialType t = fctr->type;
+			if(t == P_Undefined)		FatalM("Expression type not determined!", Line);
+			if((t & 0xF) == 0xF)		FatalM("Indirection limit exceeded!", Line);
+			return MakeASTNode(A_AddressOf,		fctr->type + 1,	fctr,	NULL,	NULL,	FlexNULL());
 		}
+		case T_Asterisk:{
+			ASTNode* fctr = ParseFactor();
+			PrimordialType t = fctr->type;
+			if(t == P_Undefined)		FatalM("Expression type not determined!", Line);
+			if(!(t & 0xF))				FatalM("Can't dereference a non-pointer!", Line);
+			return MakeASTNode(A_Dereference,	fctr->type - 1,	fctr,	NULL,	NULL,	FlexNULL());
+		}
+		case T_Identifier:
+			if(PeekToken()->type == T_OpenParen)
+				return ParseFunctionCall(tok);
+			return ParseVariableReference(tok);
 		case T_PlusPlus:{
 			ASTNode* ref = ParseFactor();
 			if(ref->op != A_VarRef)		FatalM("The increment prefix operator '++' may only be used before a variable name!", Line);
@@ -282,8 +318,8 @@ ASTNode* ParseConditionalExpression(){
 
 ASTNode* ParseAssignmentExpression(){
 	ASTNode* lhs = ParseConditionalExpression();
-	if(lhs == NULL)							FatalM("Got NULL instead of expression! (In parse.h)", __LINE__);
-	if(lhs->op != A_VarRef)		return lhs;
+	if(lhs == NULL)												FatalM("Got NULL instead of expression! (In parse.h)", __LINE__);
+	if(lhs->op != A_VarRef && lhs->op != A_Dereference)			return lhs;
 	NodeType nt = A_Undefined;
 	switch(PeekToken()->type){
 		case T_Equal:				nt = A_Assign;				break;
@@ -326,17 +362,16 @@ ASTNode* ParseReturnStatement(){
 }
 
 ASTNode* ParseDeclaration(){
-	Token* tok = GetToken();
-	PrimordialType type = GetType(tok);
+	PrimordialType type = ParseType();
 	if(type == P_Undefined)			FatalM("Expected typename!", Line);
-	tok = GetToken();
+	Token* tok = GetToken();
 	if(tok->type != T_Identifier)	FatalM("Expected identifier!", Line);
 	const char* id = tok->value.strVal;
+	InsertVar(id, NULL, type, scope);
 	if(PeekToken()->type != T_Equal)	return MakeASTLeaf(A_Declare, type, FlexStr(id));
 	GetToken();
 	ASTNode* expr = ParseExpression();
 	if(!CheckTypeCompatibility(type, expr->type))	FatalM("Types incompatible!", Line);
-	InsertVar(id, NULL, type, scope);
 	return MakeASTNode(A_Declare, type, expr, NULL, NULL, FlexStr(id));
 }
 
@@ -429,7 +464,7 @@ ASTNode* ParseBlock(){
 }
 
 ASTNode* ParseFunction(){
-	PrimordialType type = GetType(GetToken());
+	PrimordialType type = ParseType();
 	if(type == P_Undefined)					FatalM("Invalid function declaration; Expected typename.", Line);
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)			FatalM("Invalid function declaration; Expected identifier.", Line);
@@ -441,7 +476,7 @@ ASTNode* ParseFunction(){
 	while(PeekToken()->type != T_CloseParen){
 		if(PeekToken()->type == T_Comma)
 			GetToken();
-		PrimordialType paramType = GetType(GetToken());
+		PrimordialType paramType = ParseType();
 		if(paramType == P_Undefined)		FatalM("Invalid type in parameter list!", Line);
 		Token* t = GetToken();
 		if(t->type != T_Identifier)			FatalM("Expected identifier in parameter list!", Line);

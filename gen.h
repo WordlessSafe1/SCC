@@ -90,6 +90,42 @@ static const char* GenVarRef(ASTNode* node){
 	return str;
 }
 
+static char* GenAddressOf(ASTNode* node){
+	if(node->lhs->op != A_VarRef)	FatalM("Using AddressOf against non-varref", __LINE__);
+	const char* format = "	leaq	%s,	%%rax\n";
+	SymEntry* varInfo = FindVar(node->lhs->value.strVal, scope);
+	const char* offset = varInfo->value.strVal;
+	const int charCount = strlen(format) + strlen(offset) + 1;
+	char* buffer = malloc(charCount * sizeof(char));
+	snprintf(buffer, charCount, format, offset);
+	return buffer;
+}
+
+static char* GenDereference(ASTNode* node){
+	const char* format;
+	const char* offset;
+	if(node->lhs->op == A_VarRef){
+		format =
+			"	movq	%s,	%%rax\n"	// Offset
+			"	movq	(%%rax),	%%rax\n"
+		;
+		SymEntry* varInfo = FindVar(node->lhs->value.strVal, scope);
+		if(varInfo == NULL)	FatalM("Failed to find variable!", Line);
+		offset = varInfo->value.strVal;
+	}
+	else{
+		format =
+			"%s"						// Inner ASM
+			"	movq	(%%rax),	%%rax\n"
+		;
+		offset = GenExpressionAsm(node->lhs);
+	}
+	const int charCount = strlen(format) + strlen(offset) + 1;
+	char* buffer = malloc(charCount * sizeof(char));
+	snprintf(buffer, charCount, format, offset);
+	return buffer;
+}
+
 static const char* GenUnary(ASTNode* node){
 	if(node->lhs == NULL)	FatalM("Expected expression after unary operator!", Line);
 	const char* instr = NULL;
@@ -275,17 +311,34 @@ static const char* GenTernary(ASTNode* node){
 }
 
 static const char* GenAssignment(ASTNode* node){
-	if(node == NULL)			FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
-	if(node->op != A_Assign)	FatalM("Expected assignment in expression! (In gen.h)", __LINE__);
-	const char* id = node->lhs->value.strVal;
-	const char* rhs = GenExpressionAsm(node->rhs);
-	SymEntry* var = FindVar(id, scope);
-	if(var == NULL)				FatalM("Variable not defined!", Line);
-	const char* format = "%s	movq	%%rax,	%s\n";
-	int charCount = strlen(format) + strlen(rhs) + strlen(var->value.strVal);
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, format, rhs, var->value);
-	return str;
+	if(node == NULL)				FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
+	if(node->op != A_Assign)		FatalM("Expected assignment in expression! (In gen.h)", __LINE__);
+	if (node->lhs->op == A_VarRef) {
+		const char* id = node->lhs->value.strVal;
+		const char* rhs = GenExpressionAsm(node->rhs);
+		SymEntry* var = FindVar(id, scope);
+		if (var == NULL)				FatalM("Variable not defined!", Line);
+		const char* offset = var->value.strVal;
+		const char* format = "%s	movq	%%rax,	%s\n";
+		int charCount = strlen(format) + strlen(rhs) + strlen(offset);
+		char* str = malloc(charCount * sizeof(char));
+		snprintf(str, charCount, format, rhs, offset);
+		return str;
+	}
+	if(node->lhs->op != A_Dereference)	FatalM("Unsupported assignment target! (In gen.h)", __LINE__);
+	const char* derefASM = GenExpressionAsm(node->lhs->lhs);
+	const char* format = 
+		"%s" // lhs
+		"	push	%%rax\n"
+		"%s" // rhs
+		"	pop		%%rcx\n"
+		"	mov		%%rax,	(%%rcx)\n"
+	;
+	const char* innerASM = GenExpressionAsm(node->rhs);
+	const int charCount = strlen(format) + strlen(derefASM) + strlen(innerASM) + 1;
+	char* buffer = malloc(charCount * sizeof(char));
+	snprintf(buffer, charCount, format, derefASM, innerASM);
+	return buffer;
 }
 
 static const char* GenIncDec(ASTNode* node){
@@ -395,6 +448,8 @@ static const char* GenExpressionAsm(ASTNode* node){
 		case A_Ternary:				return GenTernary(node);
 		case A_Assign:				return GenAssignment(node);
 		case A_FunctionCall:		return GenFuncCall(node);
+		case A_Dereference:			return GenDereference(node);
+		case A_AddressOf:			return GenAddressOf(node);
 		// Compound Assignment
 		case A_AssignSum:
 		case A_AssignDifference:
@@ -679,10 +734,10 @@ static const char* GenFunctionAsm(ASTNode* node){
 	int paramCount = 0;
 	if (params != NULL) {
 		paramCount++;
-		do {
+		while (params->next != NULL) {
 			paramCount++;
 			params = params->next;
-		} while (params->next != NULL);
+		}
 	}
 	if(paramCount)
 		EnterScope();
