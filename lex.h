@@ -64,6 +64,31 @@ static Token* Tokenize(const char* str){
 		token->type = T_LitInt;
 		token->value.intVal = atoi(str);
 	}
+	else if(str[0] == '\''){
+		if(str[2] != '\'' && str[1] != '\\')	FatalM("Invalid character literal!", Line);
+		token->type = T_LitInt;
+		token->value.intVal = str[1];
+		if(str[1] == '\\')
+			switch(str[2]){
+				case 'a':	token->value.intVal = '\a'; break;
+				case 'b':	token->value.intVal = '\b'; break;
+				case 'e':	token->value.intVal = '\e'; break;
+				case 'f':	token->value.intVal = '\f'; break;
+				case 'n':	token->value.intVal = '\n'; break;
+				case 'r':	token->value.intVal = '\r'; break;
+				case 't':	token->value.intVal = '\t'; break;
+				case 'v':	token->value.intVal = '\v'; break;
+				case '0':	token->value.intVal = '\0'; break;
+				case '\\':	token->value.intVal = '\\'; break;
+				case '\'':	token->value.intVal = '\''; break;
+				case '"':	token->value.intVal = '\"'; break;
+				case '?':	token->value.intVal = '\?'; break;
+				case 'x':	FatalM("Hexadecimal escapes not yet supported!", Line);
+				case 'u':	FatalM("Unicode escapes not yet supported!", Line);
+				case 'U':	FatalM("Extended Unicode escapes not yet supported!", Line);
+				default:	FatalM("Multi-character character literal!", Line);
+			}
+	}
 	else{
 		token->type = T_Identifier;
 		token->value.strVal = str;
@@ -75,6 +100,8 @@ char* ShiftToken(){
 	char* token = malloc(32 * sizeof(char));
 	int len = 32;
 	int i = 0;
+	bool charLit = false;
+	bool escape = false;
 	while(true){
 		if(i == len)
 			token = realloc(token, len += 32);
@@ -83,6 +110,20 @@ char* ShiftToken(){
 		while(c == '\0')	c = fgetc(fptr);
 		if(c == EOF)
 			break;
+		if(charLit){
+			token[i++] = c;
+			if(c == '\'' && !escape)
+				charLit = !charLit;
+			escape = false;
+			if(c == '\\' && !escape)
+				escape = true;
+			continue;
+		}
+		if(c == '\''){
+			charLit = !charLit;
+			token[i++] = c;
+			continue;
+		}
 		if(c == '\n' || c == '\t' || c == ' '){
 			if(c == '\n')
 				Line++;

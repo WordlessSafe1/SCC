@@ -26,7 +26,7 @@
 <additive_expr>			::= <term> { ( '+' | '-' ) <term> }
 <term>					::= <factor> { ( '*' | '/' | '%' ) <factor> }
 <factor>				::= <unary_op> <factor> | ( "++" | "--" ) <id> | <id> ( "++" | "--" )
-							| <id> | <int> | <function_call> | '(' <expression> ')'
+							| <id> | <int> | <character_literal> | <function_call> | '(' <expression> ')'
 <function_call>			::= <id> '(' [ <expression> { ',' <expression> } ] ')'
 
 <type>					::= <type> '*' | "void" | "char" | "int" | "long"
@@ -34,7 +34,7 @@
 <compound_assign_op>	::= '+' | '-' | '*' | '/' | '%' | "<<" | ">>" | '&' | '^' | '|'
 
 <id>					::= <letter> { <letter> | <digit> }
-<character-literal>		::= "'" ( <symbol> | <letter> | <digit> ) "'"
+<character_literal>		::= "'" ( <symbol> | <letter> | <digit> ) "'"
 <symbol>				::= "!" | '"' | "#" | "$" | "%" | "&" | "'" | "(" | ")" | "*" | "+" | ","
 							| "-" | "." | "/" | ":" | ";" | "<" | "=" | ">" | "?" | "@" | "[" | "\\" # \\ is a literal \
 							| "]" | "^" | "_" | "`" | "{" | "|" | "}" | "~"
