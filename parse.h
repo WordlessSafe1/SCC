@@ -106,6 +106,16 @@ ASTNode* ParseFactor(){
 		case T_Identifier:
 			if(PeekToken()->type == T_OpenParen)
 				return ParseFunctionCall(tok);
+			if(PeekToken()->type == T_OpenBracket){
+				ASTNode* varRef = ParseVariableReference(tok);
+				if(GetToken()->type != T_OpenBracket)	FatalM("Expected open bracket in array access!", Line);
+				ASTNode* expr = ParseExpression();
+				if(GetToken()->type != T_CloseBracket)	FatalM("Expected close bracket in array access!", Line);
+				ASTNode* scale = MakeASTBinary(A_Multiply, expr->type, expr, MakeASTLeaf(A_LitInt, P_Int, FlexInt(GetPrimSize(varRef->type))), FlexNULL());
+				ASTNode* add = MakeASTBinary(A_Add, varRef->type, varRef, scale, FlexNULL());
+				ASTNode* deref = MakeASTUnary(A_Dereference, add, FlexNULL());
+				return deref;
+			}
 			return ParseVariableReference(tok);
 		case T_PlusPlus:{
 			ASTNode* ref = ParseFactor();

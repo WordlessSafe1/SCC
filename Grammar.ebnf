@@ -26,7 +26,8 @@
 <additive_expr>			::= <term> { ( '+' | '-' ) <term> }
 <term>					::= <factor> { ( '*' | '/' | '%' ) <factor> }
 <factor>				::= <unary_op> <factor> | ( "++" | "--" ) <id> | <id> ( "++" | "--" )
-							| <id> | <int> | <character_literal> | <function_call> | '(' <expression> ')'
+							| <id> | <int> | <character_literal> | <function_call>
+							| '(' <expression> ')' | <id> '[' <expression> ']'
 <function_call>			::= <id> '(' [ <expression> { ',' <expression> } ] ')'
 
 <type>					::= <type> '*' | "void" | "char" | "int" | "long"

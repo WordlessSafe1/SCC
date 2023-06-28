@@ -79,6 +79,8 @@ enum eTokenCategory {
 	T_PlusPlus,
 	T_MinusMinus,
 	T_Comma,
+	T_OpenBracket,
+	T_CloseBracket,
 };
 typedef enum eTokenCategory TokenType;
 
