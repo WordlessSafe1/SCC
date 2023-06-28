@@ -191,8 +191,8 @@ int EnterScope(){
 }
 
 int ExitScope(){
-	DestroyVarTable(scope--);
 	stackIndex[scope] = 0;
+	DestroyVarTable(scope--);
 	return scope;
 }
 
