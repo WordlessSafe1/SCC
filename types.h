@@ -14,11 +14,11 @@
 // 0x21 = char*
 // 0x22 = char**
 enum ePrimordialType {
-	P_Undefined = 0,
-	P_Void	= 0x10,
-	P_Char	= 0x20,
-	P_Int	= 0x30,
-	P_Long	= 0x40,
+	P_Undefined	= 0,
+	P_Void		= 0x10,
+	P_Char		= 0x20,
+	P_Int		= 0x30,
+	P_Long		= 0x40,
 };
 typedef enum ePrimordialType PrimordialType;
 
@@ -275,9 +275,19 @@ static int GetPrimSize(PrimordialType prim){
 int CheckTypeCompatibility(PrimordialType lhs, PrimordialType rhs){
 	if(lhs == P_Void	|| rhs == P_Void)	return TYPES_INCOMPATIBLE;
 	if(lhs == rhs)							return TYPES_COMPATIBLE;
-	if(lhs == P_Char	&& rhs == P_Int)	return TYPES_WIDEN_LHS;
-	if(lhs == P_Int		&& rhs == P_Char)	return TYPES_WIDEN_RHS;
-	return TYPES_COMPATIBLE;
+	char lptr = lhs & 0x0F; // The level of indirection of lhs
+	char rptr = rhs & 0x0F; // The level of indirection of rhs
+	int lbase = lhs & 0xF0; // The base type of lhs
+	int rbase = rhs & 0xF0; // The base type of rhs
+	if((lptr) && (rptr) && (lbase == P_Void || rbase == P_Void))	return TYPES_COMPATIBLE;
+	if(lptr && rptr && (lptr != rptr))								return TYPES_INCOMPATIBLE; // Different level pointers
+
+	int sizeL = GetPrimSize(lhs);
+	int sizeR = GetPrimSize(rhs);
+	if(sizeL ==	sizeR)						return TYPES_COMPATIBLE;
+	if(sizeL >	sizeR)						return TYPES_WIDEN_RHS;
+	if(sizeL <	sizeR)						return TYPES_WIDEN_LHS;
+	return TYPES_INCOMPATIBLE;
 }
 
 PrimordialType GetWidestType(PrimordialType lhs, PrimordialType rhs){

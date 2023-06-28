@@ -34,7 +34,13 @@ static char* CalculateParamPosition(int n){
 static const char* GenLitInt(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op != A_LitInt)	FatalM("Expected literal int in expression!", Line);
-	const char* format = "	movq	$%d,	%%rax\n";
+	const char* format = "	movq	$%d,	%%rax\n"; // NULL;
+	switch(GetPrimSize(node->type)){
+		// case 1:		format = "	movb	$%d,	%%al\n";	break;
+		// case 4:		format = "	movl	$%d,	%%eax\n";	break;
+		// case 8:		format = "	movq	$%d,	%%rax\n";	break;
+		default:	format = "	movq	$%d,	%%rax\n";	break;
+	}
 	int value = node->value.intVal;
 	int charCount = strlen(format) + (value ? (int)(log10(value) + 1) : 1 )/* <- # of digits in value */ + 1;
 	char* str = malloc(charCount * sizeof(char));
@@ -83,7 +89,13 @@ static const char* GenVarRef(ASTNode* node){
 	const char* id = node->value.strVal;
 	SymEntry* var = FindVar(id, scope);
 	if(var == NULL)				FatalM("Variable not defined!", Line);
-	const char* format = "	movq	%s,	%%rax\n";
+	const char* format = NULL;
+	switch(GetPrimSize(var->type)){
+		case 1:		format = "	movb	%s,	%%al\n";	break;
+		case 4:		format = "	movl	%s,	%%eax\n";	break;
+		case 8:		format = "	movq	%s,	%%rax\n";	break;
+		default:	format = "	movq	%s,	%%rax\n";	break;
+	};
 	int charCount = strlen(format) + strlen(var->value.strVal) + 1;
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, var->value);
@@ -319,7 +331,13 @@ static const char* GenAssignment(ASTNode* node){
 		SymEntry* var = FindVar(id, scope);
 		if (var == NULL)				FatalM("Variable not defined!", Line);
 		const char* offset = var->value.strVal;
-		const char* format = "%s	movq	%%rax,	%s\n";
+		const char* format = NULL;
+		switch(GetPrimSize(var->type)){
+			case 1:		format = "%s	movb	%%al,	%s\n";	break;
+			case 4:		format = "%s	movl	%%eax,	%s\n";	break;
+			case 8:		format = "%s	movq	%%rax,	%s\n";	break;
+			default:	format = "%s	movq	%%rax,	%s\n";	break;
+		}
 		int charCount = strlen(format) + strlen(rhs) + strlen(offset);
 		char* str = malloc(charCount * sizeof(char));
 		snprintf(str, charCount, format, rhs, offset);
