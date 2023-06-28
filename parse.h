@@ -160,6 +160,10 @@ ASTNode* ParseAdditiveExpression(){
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
 			FatalM("Types of expression members are incompatible!", Line);
+		if(IsPointer(lhs->type) && !IsPointer(rhs->type))
+			rhs = ScaleNode(rhs, lhs->type);
+		else if(IsPointer(rhs->type) && ! IsPointer(lhs->type))
+			lhs = ScaleNode(lhs, rhs->type);
 		switch (tok->type){
 			case T_Plus:
 				lhs = MakeASTBinary(A_Add,		type, lhs, rhs, FlexNULL());

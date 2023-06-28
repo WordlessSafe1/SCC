@@ -207,6 +207,7 @@ ASTNode* MakeASTNodeEx(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, 
 	node->rhs = rhs;
 	node->value = value;
 	node->secondaryValue = secondValue;
+	node->list = NULL;
 	return node;
 }
 
@@ -221,6 +222,7 @@ ASTNode* MakeASTNode(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, AS
 	node->rhs = rhs;
 	node->value = value;
 	node->secondaryValue = FlexNULL();
+	node->list = NULL;
 	return node;
 }
 
@@ -272,6 +274,10 @@ static int GetPrimSize(PrimordialType prim){
 	}
 }
 
+bool IsPointer(PrimordialType prim){
+	return (prim & 0x0F) != 0;
+}
+
 int CheckTypeCompatibility(PrimordialType lhs, PrimordialType rhs){
 	if(lhs == P_Void	|| rhs == P_Void)	return TYPES_INCOMPATIBLE;
 	if(lhs == rhs)							return TYPES_COMPATIBLE;
@@ -296,6 +302,22 @@ PrimordialType GetWidestType(PrimordialType lhs, PrimordialType rhs){
 		case TYPES_WIDEN_LHS:		return rhs;
 		default:					return lhs;
 	}
+}
+
+ASTNode* ScaleNode(ASTNode* node, PrimordialType complement){
+	if(!IsPointer(complement))	return node;
+	if(IsPointer(node->type))	FatalM("Cannot scale pointers! (In types.h)", __LINE__);
+	complement -= 0x01; // Decrement level of indirection
+	return MakeASTBinary(A_Multiply, node->type, node, MakeASTLeaf(A_LitInt, P_Int, FlexInt(GetPrimSize(complement))), FlexNULL());
+}
+
+ASTNode* WidenNode(ASTNode* node, PrimordialType complement, NodeType op){
+	if(IsPointer(complement))	return ScaleNode(node, complement);
+	PrimordialType widest = GetWidestType(node->type, complement);
+	if(widest == P_Undefined)	FatalM("Types incompatible!", Line);
+	if(widest == node->type)	return node;
+	// return MakeASTNode(A_WIDEN, complement, node, NULL, NULL, FlexNULL());
+	return node;
 }
 
 Parameter* MakeParam(const char* id, PrimordialType type, Parameter* prev){
