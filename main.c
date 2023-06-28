@@ -133,7 +133,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_Function:			val = tree->value.strVal;	break;
 		case A_Declare:				val = tree->value.strVal;	break;
 		case A_VarRef:				val = tree->value.strVal;	break;
-		case A_Assign:				val = tree->value.strVal;	break;
+		case A_Assign:				val = tree->value.strVal == NULL ? "expr" : tree->value.strVal;	break;
 		case A_FunctionCall:		val = tree->value.strVal;	break;
 		case A_LitInt:{
 			const int charCount = intlen(tree->value.intVal) + (tree->value.intVal < 0) + 1;
