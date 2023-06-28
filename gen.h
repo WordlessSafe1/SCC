@@ -91,9 +91,9 @@ static const char* GenVarRef(ASTNode* node){
 	if(var == NULL)				FatalM("Variable not defined!", Line);
 	const char* format = NULL;
 	switch(GetPrimSize(var->type)){
-		case 1:		format = "	movb	%s,	%%al\n";	break;
-		case 4:		format = "	movl	%s,	%%eax\n";	break;
-		case 8:		format = "	movq	%s,	%%rax\n";	break;
+		// case 1:		format = "	movb	%s,	%%al\n";	break;
+		// case 4:		format = "	movl	%s,	%%eax\n";	break;
+		// case 8:		format = "	movq	%s,	%%rax\n";	break;
 		default:	format = "	movq	%s,	%%rax\n";	break;
 	};
 	int charCount = strlen(format) + strlen(var->value.strVal) + 1;
@@ -333,9 +333,9 @@ static const char* GenAssignment(ASTNode* node){
 		const char* offset = var->value.strVal;
 		const char* format = NULL;
 		switch(GetPrimSize(var->type)){
-			case 1:		format = "%s	movb	%%al,	%s\n";	break;
-			case 4:		format = "%s	movl	%%eax,	%s\n";	break;
-			case 8:		format = "%s	movq	%%rax,	%s\n";	break;
+			// case 1:		format = "%s	movb	%%al,	%s\n";	break;
+			// case 4:		format = "%s	movl	%%eax,	%s\n";	break;
+			// case 8:		format = "%s	movq	%%rax,	%s\n";	break;
 			default:	format = "%s	movq	%%rax,	%s\n";	break;
 		}
 		int charCount = strlen(format) + strlen(rhs) + strlen(offset);
@@ -706,23 +706,30 @@ static const char* GenBlockAsm(ASTNode* node){
 	EnterScope();
 	const char* statementAsm = GenerateAsmFromList(node->list);
 	int stackSize = GetLocalVarCount(scope) * 8;
-	char* stackAlloc = malloc(1 * sizeof(char));
-	*stackAlloc = '\0';
+	char* stackAlloc = calloc(1, sizeof(char));
+	char* stackDealloc = calloc(1, sizeof(char));
 	if(stackSize){
 		free(stackAlloc);
-		const char* format = "	sub		$%d,		%%rsp\n";
+		free(stackDealloc);
+		const char* format = "	subq	$%d,		%%rsp\n";
 		int len = (strlen(format) + 6);
 		stackAlloc = malloc(len * sizeof(char));
 		snprintf(stackAlloc, len, format, stackSize);
+		format = "	addq	$%d,		%%rsp\n";
+		len = (strlen(format) + 6);
+		stackDealloc = malloc(len * sizeof(char));
+		snprintf(stackDealloc, len, format, stackSize);
 	}
 	int charCount =
 		+ strlen(statementAsm)	// Inner ASM
 		+ strlen(stackAlloc)	// Stack Allocation ASM
+		+ strlen(stackDealloc)	// Stack Deallocation ASM
 		+ 1						// '\0'
 	;
 	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s", stackAlloc, statementAsm);
+	snprintf(str, charCount, "%s%s%s", stackAlloc, statementAsm, stackDealloc);
 	free(stackAlloc);
+	free(stackDealloc);
 	ExitScope();
 	return str;
 }
@@ -801,11 +808,15 @@ static const char* GenFunctionAsm(ASTNode* node){
 	char* stackAlloc = calloc(1, sizeof(char));
 	char* stackDealloc = calloc(1, sizeof(char));
 	if(paramCount){
-			const char* const format = "	subq	$%d,	%%rsp\n";
+			const char* format = "	subq	$%d,	%%rsp\n";
 			const int allocSize = paramCount * 8;
-			const int charCount = strlen(format) + intlen(allocSize) + 1;
+			int charCount = strlen(format) + intlen(allocSize) + 1;
 			stackAlloc = malloc(charCount * sizeof(char));
 			snprintf(stackAlloc, charCount, format, allocSize);
+			format = "	addq	$%d,	%%rsp\n";
+			charCount = strlen(format) + intlen(allocSize) + 1;
+			stackDealloc = malloc(charCount * sizeof(char));
+			snprintf(stackDealloc, charCount, format, allocSize);
 	}
 	const char* statementAsm = GenBlockAsm(node->lhs);
 	int charCount =
