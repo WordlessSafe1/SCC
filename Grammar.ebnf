@@ -1,5 +1,5 @@
 <comment>				::= "//" { <letter> | <digit> | <symbol> | ' ' | '\t' }
-<program>				::= { <function> }
+<program>				::= { <function> | <declaration> }
 <function>				::= <type> <id> "(" [ <type> <id> { ',' <type> <id> } ] ")" ( <block> | ';' )
 <block_item>			::= <statement> | <declaration>
 <block>					::= '{' [ <block_item> ] '}'

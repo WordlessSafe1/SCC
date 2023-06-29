@@ -54,7 +54,7 @@ int main(int argc, char** argv){
 	fptr = fopen(inputTarget, "r");
 	ASTNodeList* ast = MakeASTNodeList();
 		while(PeekToken() != NULL)
-			AddNodeToASTList(ast, ParseFunction());
+			AddNodeToASTList(ast, ParseNode());
 	if(GetToken() != NULL)	FatalM("Expected EOF!", Line);
 	fclose(fptr);
 	Line = NOLINE;
@@ -77,9 +77,9 @@ int main(int argc, char** argv){
 		putc('\n', fptr);
 		fclose(fptr);
 		return 0;
-
 	}
-	const char* Asm = GenerateAsm(ast);
+	ResetVarTable(0);
+	char* Asm = GenerateAsm(ast);
 	if(print){
 		printf("%s", Asm);
 		return 0;
@@ -89,6 +89,7 @@ int main(int argc, char** argv){
 	fptr = fopen(outputTarget, "w");
 	fprintf(fptr, "%s", Asm);
 	fclose(fptr);
+	free(Asm);
 	return 0;
 }
 

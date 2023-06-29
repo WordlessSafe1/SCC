@@ -111,7 +111,7 @@ ASTNode* ParseFactor(){
 				if(GetToken()->type != T_OpenBracket)	FatalM("Expected open bracket in array access!", Line);
 				ASTNode* expr = ParseExpression();
 				if(GetToken()->type != T_CloseBracket)	FatalM("Expected close bracket in array access!", Line);
-				ASTNode* scale = MakeASTBinary(A_Multiply, expr->type, expr, MakeASTLeaf(A_LitInt, P_Int, FlexInt(GetPrimSize(varRef->type))), FlexNULL());
+				ASTNode* scale = MakeASTBinary(A_Multiply, expr->type, expr, MakeASTLeaf(A_LitInt, P_Int, FlexInt(GetPrimSize(varRef->type - 1))), FlexNULL());
 				ASTNode* add = MakeASTBinary(A_Add, varRef->type - 1, varRef, scale, FlexNULL());
 				ASTNode* deref = MakeASTUnary(A_Dereference, add, FlexNULL());
 				return deref;
@@ -386,6 +386,10 @@ ASTNode* ParseDeclaration(){
 	GetToken();
 	ASTNode* expr = ParseExpression();
 	if(!CheckTypeCompatibility(type, expr->type))	FatalM("Types incompatible!", Line);
+	if(!scope){
+		if(expr->op != A_LitInt)	FatalM("Non-constant expression in global varibale declaration!", Line);
+		return MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(expr->value.intVal));
+	}
 	return MakeASTNode(A_Declare, type, expr, NULL, NULL, FlexStr(id));
 }
 
@@ -522,6 +526,19 @@ ASTNode* ParseFunction(){
 	ExitScope();
 	return MakeASTNodeEx(A_Function, type, block, NULL, NULL, FlexStr(idStr), FlexPtr(params));
 	// return MakeASTUnary(A_Function, stmt, 0, identifier->value.strVal);
+}
+
+ASTNode* ParseNode(){
+	int i = 0;
+	Token* tok = PeekTokenN(i);
+	while(tok->type != T_OpenParen && tok->type != T_Equal && tok->type != T_Semicolon)
+		tok = PeekTokenN(++i);
+	if(tok->type != T_Equal && tok->type != T_Semicolon)
+		return ParseFunction();
+	ASTNode* decl = ParseDeclaration();
+	if(GetToken()->type != T_Semicolon)
+		FatalM("Expected semicolon after declaration!", Line);
+	return decl;
 }
 
 #endif

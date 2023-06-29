@@ -147,6 +147,13 @@ union flexible_value {
 };
 typedef union flexible_value FlexibleValue;
 
+typedef struct doubly_linked_list DbLnkList;
+struct doubly_linked_list {
+	void* val;
+	DbLnkList* prev;
+	DbLnkList* next;
+};
+
 typedef struct param Parameter;
 struct param {
 	const char* id;
@@ -335,6 +342,14 @@ Parameter* MakeParam(const char* id, PrimordialType type, Parameter* prev){
 		p->next = NULL;
 	return p;
 }
+
+DbLnkList* MakeDbLnkList(void* val, DbLnkList* prev, DbLnkList* next){
+	DbLnkList* l = malloc(sizeof(DbLnkList));
+	l->val	= val;
+	l->prev	= prev;
+	l->next	= next;
+}
+
 
 #define NodeTypesCompatible(lhs, rhs) CheckTypeCompatibility(lhs->type, rhs->type)
 #define NodeWidestType(lhs, rhs) GetWidestType(lhs->type, rhs->type)

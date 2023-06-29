@@ -5,10 +5,12 @@
 #include "types.h"
 
 static int labelPref = 9;
+static char* data_section;
+static DbLnkList* bss_vars = NULL;
 
 static const char* GenExpressionAsm(ASTNode* node);
 static const char* GenStatementAsm(ASTNode* node);
-const char* GenerateAsmFromList(ASTNodeList* list);
+static const char* GenerateAsmFromList(ASTNodeList* list);
 
 
 static char* CalculateParamPosition(int n){
@@ -568,13 +570,47 @@ static const char* GenIfStatement(ASTNode* node){
 	return str;
 }
 
-static const char* GenDeclaration(ASTNode* node){
+static char* GenDeclaration(ASTNode* node){
 	if(node == NULL)									FatalM("Expected an AST Node, got NULL instead", Line);
 	if(node->op != A_Declare)							FatalM("Expected declaration!", Line);
 	if(FindLocalVar(node->value.strVal, scope) != NULL)	FatalM("Local variable redeclaration!", Line);
 	char* varLoc = malloc(10 * sizeof(char));
-	snprintf(varLoc, 10, "%d(%%rbp)", stackIndex[scope] -= 8);
 	char* expr = "";
+	if(!scope){
+		// Global variable
+		free(varLoc);
+		const char* id = node->value.strVal;
+		varLoc = malloc((strlen(id) + 7) * sizeof(char));
+		snprintf(varLoc, strlen(id) + 7, "%s(%%rip)", id);
+		InsertVar(node->value.strVal, varLoc, node->type, scope);
+		for(DbLnkList* bss = bss_vars; bss != NULL; bss = bss->next){
+			if(!streq(bss->val, id))
+				continue;
+			bss->prev->next = bss->next;
+			bss->next->prev = bss->prev;
+			free(bss);
+		}
+		if(node->lhs == NULL){
+			DbLnkList* bss = MakeDbLnkList((void*)id, NULL, bss_vars);
+			bss_vars->prev = bss;
+			bss_vars = bss;
+			return calloc(1, sizeof(char));
+		}
+		if (node->lhs->op != A_LitInt)
+			FatalM("Non-constant expression used in global variable declaration!", Line);
+		const char* format =
+			"%s:\n"
+			"	.quad	%d\n"
+			;
+		const int charCount = strlen(format) + strlen(id) + intlen(node->lhs->value.intVal) + 1;
+		char* buffer = malloc(charCount * sizeof(char));
+		snprintf(buffer, charCount, format, id, node->lhs->value.intVal);
+		data_section = realloc(data_section, (strlen(data_section) + charCount) * sizeof(char));
+		strncat(data_section, buffer, (strlen(data_section) + charCount) * sizeof(char));
+		free(buffer);
+		return calloc(1, sizeof(char));
+	}
+	snprintf(varLoc, 10, "%d(%%rbp)", stackIndex[scope] -= 8);
 	if(node->lhs != NULL){
 		const char* rhs = GenExpressionAsm(node->lhs);
 		const char* format = "%s	movq	%%rax,	%s\n";
@@ -837,11 +873,7 @@ static const char* GenFunctionAsm(ASTNode* node){
 	return str;
 }
 
-const char* GenerateAsm(ASTNodeList* node){
-	return GenerateAsmFromList(node);
-}
-
-const char* GenerateAsmFromList(ASTNodeList* list){
+static const char* GenerateAsmFromList(ASTNodeList* list){
 	if(list->count < 1)	return "";
 	const char* generated = NULL;
 	char* buffer = malloc(1);
@@ -858,5 +890,55 @@ const char* GenerateAsmFromList(ASTNodeList* list){
 		strcat(buffer, generated);
 		i++;
 	}
+	return buffer;
+}
+
+char* GenerateAsm(ASTNodeList* node){
+	data_section = calloc(1, sizeof(char));
+	bss_vars = MakeDbLnkList("", NULL, NULL);
+	char* bss_section = calloc(1, sizeof(char));
+	const char* Asm = GenerateAsmFromList(node);
+	int dslen = strlen(data_section);
+	if(dslen){
+		const char* format =
+			"	.data\n"
+			"	.align 16\n"
+			"%s"
+		;
+		dslen += strlen(format);
+		char* buffer = malloc((dslen + 1) * sizeof(char));
+		snprintf(buffer, dslen + 1, format, data_section);
+		free(data_section);
+		data_section = buffer;
+	}
+	if(bss_vars->next != NULL){
+		bss_section = realloc(bss_section, 18);
+		sprintf(bss_section, "	.bss\n	.align	16\n");
+		const char* const format =
+			"%s" // bss_section
+			"%s:\n" // id
+			"	.zero	%d\n" // size
+		;
+		for(DbLnkList* bss = bss_vars; bss != NULL; bss = bss->next){
+			if(streq(bss->val, ""))	continue;
+			char* buffer = malloc(strlen(bss_section) + strlen(bss->val) + strlen(format) + 1);
+			SymEntry* var = FindVar(bss->val, 0);
+			if(var == NULL)	FatalM("Failed to find global variable! (In gen.h)", __LINE__);
+			sprintf(buffer, format, bss_section, bss->val, GetPrimSize(var->type));
+			free(bss_section);
+			bss_section = buffer;
+			if(bss->prev != NULL)
+				free(bss->prev);
+		}
+	}
+	const char* format =
+		"%s" // Data section
+		"%s" // BSS section
+		"	.text\n"
+		"%s" // ASM
+	;
+	data_section = realloc(data_section, dslen + strlen(Asm) + 1);
+	char* buffer = malloc(dslen + strlen(Asm) + strlen(format) + strlen(bss_section) + 1);
+	snprintf(buffer, dslen + strlen(Asm) + strlen(format) + strlen(bss_section) + 1, format, data_section, bss_section, Asm);
 	return buffer;
 }

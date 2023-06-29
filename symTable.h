@@ -92,6 +92,14 @@ void DestroyVarTable(int scope){
 	hashArray[scope] = NULL;
 	varCount[scope] = 0;
 }
+
+void ResetVarTable(int scope) {
+	DestroyVarTable(scope);
+	CreateScope(scope);
+	for (int i = 0; i < CAPACITY; i++)
+		hashArray[scope][i] = NULL;
+}
+
 SymEntry* FindVar(const char* key, int scope);
 SymEntry* FindLocalVar(const char* key, int scope);
 
