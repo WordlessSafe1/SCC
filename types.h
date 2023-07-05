@@ -81,6 +81,7 @@ enum eTokenCategory {
 	T_Comma,
 	T_OpenBracket,
 	T_CloseBracket,
+	T_LitStr,
 };
 typedef enum eTokenCategory TokenType;
 
@@ -137,6 +138,7 @@ enum eNodeType {
 	A_FunctionCall,
 	A_AddressOf,
 	A_Dereference,
+	A_LitStr,
 };
 typedef enum eNodeType NodeType;
 

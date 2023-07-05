@@ -99,6 +99,13 @@ static Token* Tokenize(const char* str){
 					default:	FatalM("Multi-character character literal!", Line);
 				}
 		}
+		else if(str[0] == '"'){
+			token->type = T_LitStr;
+			int lstr = strlen(str);
+			char* buffer = calloc(lstr - 1, sizeof(char));
+			strncpy(buffer, str + 1, lstr - 2);
+			token->value.strVal = buffer;
+		}
 		else{
 			token->type = T_Identifier;
 			token->value.strVal = str;
@@ -112,6 +119,7 @@ char* ShiftToken(){
 	int len = 32;
 	int i = 0;
 	bool charLit = false;
+	bool strLit = false;
 	bool escape = false;
 	while(true){
 		if(i == len)
@@ -130,8 +138,20 @@ char* ShiftToken(){
 				escape = true;
 			continue;
 		}
-		if(c == '\''){
+		if(strLit){
+			token[i++] = c;
+			if(c == '"' && !escape)
+				strLit = !strLit;
+			escape = !escape && c == '\\';
+			continue;
+		}
+		if(c == '\'' && !strLit){
 			charLit = !charLit;
+			token[i++] = c;
+			continue;
+		}
+		if(c == '"' && !charLit){
+			strLit = !strLit;
 			token[i++] = c;
 			continue;
 		}

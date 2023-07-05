@@ -50,6 +50,16 @@ static const char* GenLitInt(ASTNode* node){
 	return str;
 }
 
+static char* GenLitStr(ASTNode* node){
+	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
+	if(node->op != A_LitStr)	FatalM("Expected literal String in expression!", Line);
+	const char* format = "	.data\n2:\n	.ascii \"%s\\x0\"\n	.text\n	leaq	2b(%%rip),	%%rax\n"; // NULL;
+	int charCount = strlen(format) + strlen(node->value.strVal) + 1;
+	char* buffer = calloc(charCount, sizeof(char));
+	snprintf(buffer, charCount, format, node->value.strVal);
+	return buffer;
+}
+
 static const char* GenFuncCall(ASTNode* node){
 	if(node == NULL)				FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
 	if(node->op != A_FunctionCall)	FatalM("Expected variable reference in expression! (In gen.h)", __LINE__);
@@ -485,6 +495,7 @@ static const char* GenExpressionAsm(ASTNode* node){
 	if(node == NULL)					FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
 	switch(node->op){
 		case A_LitInt:				return GenLitInt(node);
+		case A_LitStr:				return GenLitStr(node);
 		case A_VarRef:				return GenVarRef(node);
 		case A_Ternary:				return GenTernary(node);
 		case A_Assign:				return GenAssignment(node);

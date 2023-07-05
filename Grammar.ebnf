@@ -27,7 +27,7 @@
 <term>					::= <factor> { ( '*' | '/' | '%' ) <factor> }
 <factor>				::= <unary_op> <factor> | ( "++" | "--" ) <id> | <id> ( "++" | "--" )
 							| <id> | <int> | <character_literal> | <function_call>
-							| '(' <expression> ')' | <id> '[' <expression> ']'
+							| '(' <expression> ')' | <id> '[' <expression> ']' | <string_literal>
 <function_call>			::= <id> '(' [ <expression> { ',' <expression> } ] ')'
 
 <type>					::= <type> '*' | "void" | "char" | "int" | "long"
@@ -35,7 +35,9 @@
 <compound_assign_op>	::= '+' | '-' | '*' | '/' | '%' | "<<" | ">>" | '&' | '^' | '|'
 
 <id>					::= <letter> { <letter> | <digit> }
-<character_literal>		::= "'" ( <symbol> | <letter> | <digit> ) "'"
+<character_literal>		::= "'" ( <escape_sequence> | <symbol> | <letter> | <digit> | <whitespace> ) "'"
+<string_literal>		::= '"' { <escape_sequence> | <symbol> | <letter> | <digit> | <whitespace> } '"'
+<escape_sequence>		::= '\\' ( 'a' | 'b' | 'e' | 'f' | 'n' | 'r' | 't' | 'v' | '0' | '\\' | "'" | '"' | '?' )
 <symbol>				::= "!" | '"' | "#" | "$" | "%" | "&" | "'" | "(" | ")" | "*" | "+" | ","
 							| "-" | "." | "/" | ":" | ";" | "<" | "=" | ">" | "?" | "@" | "[" | "\\" # \\ is a literal \
 							| "]" | "^" | "_" | "`" | "{" | "|" | "}" | "~"
@@ -46,5 +48,6 @@
 							| "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n"
 							| "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v"
 							| "w" | "x" | "y" | "z"
+<whitespace>			::= '\t' | ' '
 <int>					::= <digit> | <int> <digit>
 <digit>					::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"

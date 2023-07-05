@@ -84,6 +84,7 @@ ASTNode* ParseFactor(){
 			PrimordialType type = tok->value.intVal >= 0 && tok->value.intVal < 256 ? P_Char : P_Int;
 			return MakeASTLeaf(A_LitInt, type, FlexInt(tok->value.intVal));
 		}
+		case T_LitStr:		return MakeASTLeaf(A_LitStr, P_Char + 1, tok->value);
 		case T_Minus:		return MakeASTUnary(A_Negate,				ParseFactor(),	FlexNULL());
 		case T_Bang:		return MakeASTUnary(A_LogicalNot,			ParseFactor(),	FlexNULL());
 		case T_Tilde:		return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	FlexNULL());
