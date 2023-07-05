@@ -92,12 +92,17 @@ static const char* GenVarRef(ASTNode* node){
 	SymEntry* var = FindVar(id, scope);
 	if(var == NULL)				FatalM("Variable not defined!", Line);
 	const char* format = NULL;
-	switch(GetPrimSize(var->type)){
-		// case 1:		format = "	movb	%s,	%%al\n";	break;
-		// case 4:		format = "	movl	%s,	%%eax\n";	break;
-		// case 8:		format = "	movq	%s,	%%rax\n";	break;
-		default:	format = "	movq	%s,	%%rax\n";	break;
-	};
+	if(strchr(var->key, 'i') != NULL){
+		// Var is global
+		switch(GetPrimSize(var->type)){
+			case 1:		format = "	movzbq	%s,	%%rax\n";	break;
+			case 4:		format = "	movzwq	%s,	%%rax\n";	break;
+			case 8:		format = "	movq	%s,	%%rax\n";	break;
+			default:	format = "	movq	%s,	%%rax\n";	break;
+		};
+	}
+	else
+		format = "	movq	%s,	%%rax\n";
 	int charCount = strlen(format) + strlen(var->value.strVal) + 1;
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, var->value);
@@ -123,6 +128,22 @@ static char* GenDereference(ASTNode* node){
 			"	movq	%s,	%%rax\n"	// Offset
 			"	movq	(%%rax),	%%rax\n"
 		;
+		switch(GetPrimSize(node->type)){
+			case 1:
+				format = 
+					"	movq	%s,	%%rax\n"	// Offset
+					"	movzbq	(%%rax),	%%rax\n"
+				;
+				break;
+			case 4:
+				format = 
+					"	movq	%s,	%%rax\n"	// Offset
+					"	movzwq	(%%rax),	%%rax\n"
+				;
+				break;
+			case 8:		break;
+			default:	break;
+		}
 		SymEntry* varInfo = FindVar(node->lhs->value.strVal, scope);
 		if(varInfo == NULL)	FatalM("Failed to find variable!", Line);
 		offset = varInfo->value.strVal;
@@ -601,7 +622,13 @@ static char* GenDeclaration(ASTNode* node){
 		const char* format =
 			"%s:\n"
 			"	.quad	%d\n"
-			;
+		;
+		switch(GetPrimSize(node->type)){
+			case 1:		format = "%s:\n	.byte	%d\n"; break;
+			case 4:		format = "%s:\n	.word	%d\n"; break;
+			case 8:		format = "%s:\n	.quad	%d\n"; break;
+			default:	break;
+		}
 		const int charCount = strlen(format) + strlen(id) + intlen(node->lhs->value.intVal) + 1;
 		char* buffer = malloc(charCount * sizeof(char));
 		snprintf(buffer, charCount, format, id, node->lhs->value.intVal);

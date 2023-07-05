@@ -388,6 +388,11 @@ ASTNode* ParseDeclaration(){
 	if(!CheckTypeCompatibility(type, expr->type))	FatalM("Types incompatible!", Line);
 	if(!scope){
 		if(expr->op != A_LitInt)	FatalM("Non-constant expression in global varibale declaration!", Line);
+		int typeSize = GetPrimSize(type);
+		if(expr->value.intVal >= (1 << (8 * typeSize))){
+			WarnM("Truncating right hand side of assignment!", Line);
+			expr->value.intVal &= (1 << (8 * typeSize)) - 1;
+		}
 		return MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(expr->value.intVal));
 	}
 	return MakeASTNode(A_Declare, type, expr, NULL, NULL, FlexStr(id));

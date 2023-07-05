@@ -199,9 +199,16 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_AddressOf:			name = "AddressOf";			break;
 		case A_Dereference:			name = "Dereference";		break;
 	}
-	
+	const char* type = calloc(1, sizeof(char));
+	switch(tree->type & 0xF0){
+		case P_Undefined:	break;
+		case P_Void:		type = "void";	break;
+		case P_Char:		type = "char";	break;
+		case P_Int:			type = "int";	break;
+		case P_Long:		type = "long";	break;
+	}
 	const char* format =
-		"\n%s%s(%s)" // Tabs, Name, val
+		"\n%s%s(%s)[%s]" // Tabs, Name, val, type
 		"%s" // lhs
 		"%s" // mid
 		"%s" // rhs
@@ -210,7 +217,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 	char* tabs = charStr(' ', depth * 2);
 	const int charCount = strlen(name) + strlen(lhs) + strlen(mid) + strlen(rhs) + strlen(val) + strlen(format) + strlen(list) + (2 * strlen(tabs)) + 1;
 	char* buffer = malloc(charCount * sizeof(char));
-	snprintf(buffer, charCount, format, tabs, name, val, lhs, mid, rhs, list, tabs);
+	snprintf(buffer, charCount, format, tabs, name, val, type, lhs, mid, rhs, list, tabs);
 	free(lhs);
 	free(mid);
 	free(rhs);
