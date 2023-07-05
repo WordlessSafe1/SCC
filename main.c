@@ -31,6 +31,7 @@ char* TokenTypeNames[] = {
 	"Semicolon",
 	"LitInt",
 };
+char* AlterFileExtension(const char* filename, const char* extension);
 char* DumpASTTree(ASTNode* tree, int depth);
 char* charStr(char c, int count);
 bool noWarn = false;
@@ -38,11 +39,14 @@ bool noWarn = false;
 int main(int argc, char** argv){
 	InitVarTable();
 	if(argc < 2)	FatalM("No input files specified!", NOLINE);
-	const char* outputTarget = NULL; 
-	const char* inputTarget = NULL; 
+	const char* outputTarget = "a.out"; 
+	const char** inputTargets = calloc(MAXFILES, sizeof(char*));
+	int inputs = 0;
+	int i = 0;
 	bool dump		= false;
 	bool print		= false;
 	bool supIntl	= false;
+	bool asASM		= false;
 	for(int i = 1; i < argc; i++){
 		if(streq(argv[i], "-o")){
 			if(i+1 >= argc)	FatalM("Trailing argument '-o'!", NOLINE);
@@ -52,53 +56,107 @@ int main(int argc, char** argv){
 		else if(streq(argv[i], "-p"))	print		= true;
 		else if(streq(argv[i], "-sI"))	supIntl		= true;
 		else if(streq(argv[i], "-q"))	noWarn		= true;
-		else							inputTarget = argv[i];
+		else if(streq(argv[i], "-S"))	asASM		= true;
+		else if(inputs == MAXFILES - 2)	FatalM("Too many object files!", NOLINE);
+		else							inputTargets[inputs++] = argv[i];
 	}
-	if (inputTarget == NULL)	FatalM("No input file specified!", NOLINE);
-	fptr = fopen(inputTarget, "r");
-	ASTNodeList* ast = MakeASTNodeList();
+	if (inputs == 0)	FatalM("No input files specified!", NOLINE);
+	for(int i = 0; i < inputs; i++){
+		char* outputTarget = outputTarget;
+		if(inputs != 1 || !asASM)
+			outputTarget = NULL;
+		fptr = fopen(inputTargets[i], "r");
+		Line = 1;
+		ASTNodeList* ast = MakeASTNodeList();
 		while(PeekToken() != NULL)
 			AddNodeToASTList(ast, ParseNode());
-	if(GetToken() != NULL)	FatalM("Expected EOF!", Line);
-	fclose(fptr);
-	Line = NOLINE;
-	if(dump){
-		if(outputTarget == NULL || print){
+		if(GetToken() != NULL)	FatalM("Expected EOF!", Line);
+		fclose(fptr);
+		Line = NOLINE;
+		if(dump){
+			if(outputTarget == NULL || print){
+				if(supIntl)
+					printf("%s", "#ifdef __INTELLISENSE__\n" "	#pragma diag_suppress 29\n" "	#pragma diag_suppress 169\n" "	#pragma diag_suppress 130\n" "#endif");
+				for(int i = 0; i < ast->count; i++){
+					char* tree = DumpASTTree(ast->nodes[i], 0);
+					printf("%s", tree);
+					free(tree);
+				}
+				putchar('\n');
+				break;
+			}
+			fptr = fopen(outputTarget, "w");
 			if(supIntl)
-				printf("%s", "#ifdef __INTELLISENSE__\n" "	#pragma diag_suppress 29\n" "	#pragma diag_suppress 169\n" "	#pragma diag_suppress 130\n" "#endif");
+				fprintf(fptr, "%s", "#ifdef __INTELLISENSE__\n" "	#pragma diag_suppress 29\n" "	#pragma diag_suppress 169\n" "	#pragma diag_suppress 130\n" "#endif");
 			for(int i = 0; i < ast->count; i++){
 				char* tree = DumpASTTree(ast->nodes[i], 0);
-				printf("%s", tree);
+				fprintf(fptr, "%s", tree);
 				free(tree);
 			}
-			putchar('\n');
+			putc('\n', fptr);
+			fclose(fptr);
 			return 0;
 		}
-		fptr = fopen(outputTarget, "w");
-		if(supIntl)
-			fprintf(fptr, "%s", "#ifdef __INTELLISENSE__\n" "	#pragma diag_suppress 29\n" "	#pragma diag_suppress 169\n" "	#pragma diag_suppress 130\n" "#endif");
-		for(int i = 0; i < ast->count; i++){
-			char* tree = DumpASTTree(ast->nodes[i], 0);
-			fprintf(fptr, "%s", tree);
-			free(tree);
+		ResetVarTable(0);
+		char* Asm = GenerateAsm(ast);
+		if(print){
+			printf("%s", Asm);
+			break;
 		}
-		putc('\n', fptr);
+		if(outputTarget == NULL)
+			outputTarget = AlterFileExtension(inputTargets[i], "s");
+		fptr = fopen(outputTarget, "w");
+		fprintf(fptr, "%s", Asm);
 		fclose(fptr);
-		return 0;
+		if(asASM)	return 0;
+		{
+			const char* format = "as -o %s %s";
+			char* outfilename = AlterFileExtension(inputTargets[i], "o");
+			int charCount = strlen(outfilename) + strlen(outputTarget) + strlen(format) + 1;
+			char* cmd = malloc(charCount * sizeof(char));
+			snprintf(cmd, charCount * sizeof(char), format, outfilename, outputTarget);
+			system(cmd);
+			unlink(outputTarget);
+			free(outfilename);
+			free(cmd);
+		}
+		free(Asm);
 	}
-	ResetVarTable(0);
-	char* Asm = GenerateAsm(ast);
-	if(print){
-		printf("%s", Asm);
-		return 0;
+	{
+		char* cmd = strdup("cc -o ");
+		int charCount = strlen(cmd) + strlen(outputTarget) + 1;
+		cmd = realloc(cmd, charCount * sizeof(char));
+		strcat(cmd, outputTarget);
+		for(int i = 0; i < inputs; i++){
+			char* targ = AlterFileExtension(inputTargets[i], "o");
+			charCount += strlen(targ) + 1;
+			char* buffer = calloc(charCount, sizeof(char));
+			snprintf(buffer, charCount, "%s %s", cmd, targ);
+			free(cmd);
+			free(targ);
+			cmd = buffer;
+		}
+		system(cmd);
+		for(int i = 0; i < inputs; i++){
+			char* targ = AlterFileExtension(inputTargets[i], "o");
+			unlink(targ);
+			free(targ);
+		}
 	}
-	if(outputTarget == NULL)
-		outputTarget = "a.s";
-	fptr = fopen(outputTarget, "w");
-	fprintf(fptr, "%s", Asm);
-	fclose(fptr);
-	free(Asm);
 	return 0;
+}
+
+
+char* AlterFileExtension(const char* filename, const char* extension){
+	int charCount = strlen(filename) + strlen(extension) + 1;
+	char* dpos;
+	char* newfile = calloc(charCount, sizeof(char));
+	strncpy(newfile, filename, charCount);
+	if((dpos = strrchr(newfile, '.')) == NULL)	return NULL;
+	if(*++dpos == '\0')	return NULL;
+	*dpos = '\0';
+	strncat(newfile, extension, strlen(extension));
+	return newfile;
 }
 
 void FatalM(const char* msg, int line){

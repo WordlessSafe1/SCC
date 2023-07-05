@@ -5,6 +5,7 @@
 
 #define extern_main extern
 
+#define MAXFILES 100
 #define NOLINE -1
 #define true 0b1
 #define false 0
