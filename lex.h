@@ -93,7 +93,7 @@ static Token* Tokenize(const char* str){
 					case '\'':	token->value.intVal = '\''; break;
 					case '"':	token->value.intVal = '\"'; break;
 					case '?':	token->value.intVal = '\?'; break;
-					case 'x':	FatalM("Hexadecimal escapes not yet supported!", Line);
+					case 'x':	token->value.intVal = strtol(str + 3, NULL, 16); break;
 					case 'u':	FatalM("Unicode escapes not yet supported!", Line);
 					case 'U':	FatalM("Extended Unicode escapes not yet supported!", Line);
 					default:	FatalM("Multi-character character literal!", Line);
