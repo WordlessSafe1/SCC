@@ -44,7 +44,7 @@ static const char* GenLitInt(ASTNode* node){
 		default:	format = "	movq	$%d,	%%rax\n";	break;
 	}
 	int value = node->value.intVal;
-	int charCount = strlen(format) + (value ? (int)(log10(value) + 1) : 1 )/* <- # of digits in value */ + 1;
+	int charCount = strlen(format) + intlen(value) + 1;
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, value);
 	return str;
