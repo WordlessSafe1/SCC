@@ -96,7 +96,7 @@ static const char* GenVarRef(ASTNode* node){
 		// Var is global
 		switch(GetPrimSize(var->type)){
 			case 1:		format = "	movzbq	%s,	%%rax\n";	break;
-			case 4:		format = "	movzwq	%s,	%%rax\n";	break;
+			case 4:		format = "	movslq	%s,	%%rax\n";	break;
 			case 8:		format = "	movq	%s,	%%rax\n";	break;
 			default:	format = "	movq	%s,	%%rax\n";	break;
 		};
@@ -138,7 +138,7 @@ static char* GenDereference(ASTNode* node){
 			case 4:
 				format = 
 					"	movq	%s,	%%rax\n"	// Offset
-					"	movzwq	(%%rax),	%%rax\n"
+					"	movslq	(%%rax),	%%rax\n"
 				;
 				break;
 			case 8:		break;
@@ -625,7 +625,7 @@ static char* GenDeclaration(ASTNode* node){
 		;
 		switch(GetPrimSize(node->type)){
 			case 1:		format = "%s:\n	.byte	%d\n"; break;
-			case 4:		format = "%s:\n	.word	%d\n"; break;
+			case 4:		format = "%s:\n	.long	%d\n"; break;
 			case 8:		format = "%s:\n	.quad	%d\n"; break;
 			default:	break;
 		}
@@ -641,6 +641,12 @@ static char* GenDeclaration(ASTNode* node){
 	if(node->lhs != NULL){
 		const char* rhs = GenExpressionAsm(node->lhs);
 		const char* format = "%s	movq	%%rax,	%s\n";
+		switch(GetPrimSize(node->type)){
+			case 1:		format = "%s	movb	%%al,	%s\n";	break;
+			case 4:		format = "%s	movl	%%eax,	%s\n";	break;
+			case 8:		break;
+			default:	break;
+		}
 		int len = (strlen(format) + strlen(rhs) + strlen(varLoc) + 4);
 		expr = malloc(len * sizeof(char));
 		snprintf(expr, len, format, rhs, varLoc);
