@@ -33,6 +33,7 @@ char* TokenTypeNames[] = {
 };
 char* DumpASTTree(ASTNode* tree, int depth);
 char* charStr(char c, int count);
+bool noWarn = false;
 
 int main(int argc, char** argv){
 	InitVarTable();
@@ -50,6 +51,7 @@ int main(int argc, char** argv){
 		else if(streq(argv[i], "-t"))	dump		= true;
 		else if(streq(argv[i], "-p"))	print		= true;
 		else if(streq(argv[i], "-sI"))	supIntl		= true;
+		else if(streq(argv[i], "-q"))	noWarn		= true;
 		else							inputTarget = argv[i];
 	}
 	if (inputTarget == NULL)	FatalM("No input file specified!", NOLINE);
@@ -106,6 +108,7 @@ void FatalM(const char* msg, int line){
 }
 
 void WarnM(const char* msg, int line){
+	if(noWarn)	return;
 	if(line == NOLINE)	printf("Warning:\n\t%s\n", msg);
 	else				printf("Warning - on ln %d:\n\t%s\n", line, msg);
 }
