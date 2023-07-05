@@ -39,8 +39,9 @@ int main(int argc, char** argv){
 	if(argc < 2)	FatalM("No input files specified!", NOLINE);
 	const char* outputTarget = NULL; 
 	const char* inputTarget = NULL; 
-	bool dump = false;
-	bool print = false;
+	bool dump		= false;
+	bool print		= false;
+	bool supIntl	= false;
 	for(int i = 1; i < argc; i++){
 		if(streq(argv[i], "-o")){
 			if(i+1 >= argc)	FatalM("Trailing argument '-o'!", NOLINE);
@@ -48,6 +49,7 @@ int main(int argc, char** argv){
 		}
 		else if(streq(argv[i], "-t"))	dump		= true;
 		else if(streq(argv[i], "-p"))	print		= true;
+		else if(streq(argv[i], "-sI"))	supIntl		= true;
 		else							inputTarget = argv[i];
 	}
 	if (inputTarget == NULL)	FatalM("No input file specified!", NOLINE);
@@ -60,6 +62,8 @@ int main(int argc, char** argv){
 	Line = NOLINE;
 	if(dump){
 		if(outputTarget == NULL || print){
+			if(supIntl)
+				printf("%s", "#ifdef __INTELLISENSE__\n" "	#pragma diag_suppress 29\n" "	#pragma diag_suppress 169\n" "	#pragma diag_suppress 130\n" "#endif");
 			for(int i = 0; i < ast->count; i++){
 				char* tree = DumpASTTree(ast->nodes[i], 0);
 				printf("%s", tree);
@@ -69,6 +73,8 @@ int main(int argc, char** argv){
 			return 0;
 		}
 		fptr = fopen(outputTarget, "w");
+		if(supIntl)
+			fprintf(fptr, "%s", "#ifdef __INTELLISENSE__\n" "	#pragma diag_suppress 29\n" "	#pragma diag_suppress 169\n" "	#pragma diag_suppress 130\n" "#endif");
 		for(int i = 0; i < ast->count; i++){
 			char* tree = DumpASTTree(ast->nodes[i], 0);
 			fprintf(fptr, "%s", tree);
@@ -207,6 +213,16 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case P_Int:			type = "int";	break;
 		case P_Long:		type = "long";	break;
 	}
+	if(tree->type & 0x0F){
+		int deref = tree->type & 0x0F;
+		int tlen = strlen(type);
+		char* buffer = calloc(tlen + deref + 1, sizeof(char));
+		strncpy(buffer, type, tlen);
+		buffer[tlen + deref + 1] = '\0';
+		for(int i = deref + tlen - 1; i >= tlen; i--)
+			buffer[i] = '*';
+		type = buffer;
+	}
 	const char* format =
 		"\n%s%s(%s)[%s]" // Tabs, Name, val, type
 		"%s" // lhs
@@ -215,7 +231,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		"%s" // list
 	;
 	char* tabs = charStr(' ', depth * 2);
-	const int charCount = strlen(name) + strlen(lhs) + strlen(mid) + strlen(rhs) + strlen(val) + strlen(format) + strlen(list) + (2 * strlen(tabs)) + 1;
+	const int charCount = strlen(name) + strlen(lhs) + strlen(mid) + strlen(rhs) + strlen(val) + strlen(type) + strlen(format) + strlen(list) + (2 * strlen(tabs)) + 1;
 	char* buffer = malloc(charCount * sizeof(char));
 	snprintf(buffer, charCount, format, tabs, name, val, type, lhs, mid, rhs, list, tabs);
 	free(lhs);
