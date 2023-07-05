@@ -53,10 +53,24 @@ static const char* GenLitInt(ASTNode* node){
 static char* GenLitStr(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op != A_LitStr)	FatalM("Expected literal String in expression!", Line);
-	const char* format = "	.data\n2:\n	.ascii \"%s\\x0\"\n	.text\n	leaq	2b(%%rip),	%%rax\n"; // NULL;
-	int charCount = strlen(format) + strlen(node->value.strVal) + 1;
+	const char* format = "	leaq	.L%d(%%rip),	%%rax\n";
+	int charCount = strlen(format) + strlen(node->value.strVal) + (2 * intlen(lVar)) + 1;
 	char* buffer = calloc(charCount, sizeof(char));
-	snprintf(buffer, charCount, format, node->value.strVal);
+	snprintf(buffer, charCount, format, lVar);
+	{
+		// .data
+		const char* format =
+			".L%d:\n"
+			"	.ascii \"%s\\0\"\n"
+		;
+		int charCount = strlen(format) + strlen(node->value.strVal) + intlen(lVar) + 1;
+		char* buffer = calloc(charCount, sizeof(char));
+		snprintf(buffer, charCount, format, lVar, node->value.strVal);
+		data_section = realloc(data_section, (strlen(data_section) + charCount) * sizeof(char));
+		strncat(data_section, buffer, charCount);
+		free(buffer);
+	}
+	lVar++;
 	return buffer;
 }
 
@@ -644,7 +658,7 @@ static char* GenDeclaration(ASTNode* node){
 		char* buffer = malloc(charCount * sizeof(char));
 		snprintf(buffer, charCount, format, id, node->lhs->value.intVal);
 		data_section = realloc(data_section, (strlen(data_section) + charCount) * sizeof(char));
-		strncat(data_section, buffer, (strlen(data_section) + charCount) * sizeof(char));
+		strncat(data_section, buffer, charCount);
 		free(buffer);
 		return calloc(1, sizeof(char));
 	}

@@ -11,6 +11,7 @@
 extern_main FILE* fptr;
 extern_main int Line init(1);
 extern_main int scope init(0);
+extern_main int lVar init(0);
 extern_main int* stackIndex;
 
 extern_main void FatalM(const char*, int);
