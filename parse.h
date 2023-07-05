@@ -385,12 +385,16 @@ ASTNode* ParseDeclaration(){
 	if(PeekToken()->type != T_Equal)	return MakeASTLeaf(A_Declare, type, FlexStr(id));
 	GetToken();
 	ASTNode* expr = ParseExpression();
-	if(!CheckTypeCompatibility(type, expr->type))	FatalM("Types incompatible!", Line);
+	int typeCompat = CheckTypeCompatibility(type, expr->type);
+	switch(typeCompat){
+		case TYPES_INCOMPATIBLE:	FatalM("Types incompatible!", Line);
+		case TYPES_WIDEN_LHS:		WarnM("Truncating right hand side of declaration!", Line); break;
+		default:					break;
+	}
 	if(!scope){
 		if(expr->op != A_LitInt)	FatalM("Non-constant expression in global varibale declaration!", Line);
 		int typeSize = GetPrimSize(type);
 		if(expr->value.intVal >= (1 << (8 * typeSize))){
-			WarnM("Truncating right hand side of assignment!", Line);
 			expr->value.intVal &= (1 << (8 * typeSize)) - 1;
 		}
 		return MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(expr->value.intVal));

@@ -92,17 +92,17 @@ static const char* GenVarRef(ASTNode* node){
 	SymEntry* var = FindVar(id, scope);
 	if(var == NULL)				FatalM("Variable not defined!", Line);
 	const char* format = NULL;
-	if(strchr(var->key, 'i') != NULL){
-		// Var is global
-		switch(GetPrimSize(var->type)){
-			case 1:		format = "	movzbq	%s,	%%rax\n";	break;
-			case 4:		format = "	movslq	%s,	%%rax\n";	break;
-			case 8:		format = "	movq	%s,	%%rax\n";	break;
-			default:	format = "	movq	%s,	%%rax\n";	break;
-		};
-	}
-	else
-		format = "	movq	%s,	%%rax\n";
+	// if(strchr(var->key, 'i') != NULL){
+		// // Var is global
+	switch(GetPrimSize(var->type)){
+		case 1:		format = "	movzbq	%s,	%%rax\n";	break;
+		case 4:		format = "	movslq	%s,	%%rax\n";	break;
+		case 8:		format = "	movq	%s,	%%rax\n";	break;
+		default:	format = "	movq	%s,	%%rax\n";	break;
+	};
+	// }
+	// else
+	// 	format = "	movq	%s,	%%rax\n";
 	int charCount = strlen(format) + strlen(var->value.strVal) + 1;
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, var->value);
@@ -356,9 +356,9 @@ static const char* GenAssignment(ASTNode* node){
 		const char* offset = var->value.strVal;
 		const char* format = NULL;
 		switch(GetPrimSize(var->type)){
-			// case 1:		format = "%s	movb	%%al,	%s\n";	break;
-			// case 4:		format = "%s	movl	%%eax,	%s\n";	break;
-			// case 8:		format = "%s	movq	%%rax,	%s\n";	break;
+			case 1:		format = "%s	movb	%%al,	%s\n";	break;
+			case 4:		format = "%s	movl	%%eax,	%s\n";	break;
+			case 8:		format = "%s	movq	%%rax,	%s\n";	break;
 			default:	format = "%s	movq	%%rax,	%s\n";	break;
 		}
 		int charCount = strlen(format) + strlen(rhs) + strlen(offset);
