@@ -628,7 +628,7 @@ static char* GenDeclaration(ASTNode* node){
 		const char* id = node->value.strVal;
 		varLoc = malloc((strlen(id) + 7) * sizeof(char));
 		snprintf(varLoc, strlen(id) + 7, "%s(%%rip)", id);
-		InsertVar(node->value.strVal, varLoc, node->type, scope);
+		InsertVar(node->value.strVal, varLoc, node->type, node->cType, scope);
 		for(DbLnkList* bss = bss_vars; bss != NULL; bss = bss->next){
 			if(!streq(bss->val, id))
 				continue;
@@ -648,7 +648,7 @@ static char* GenDeclaration(ASTNode* node){
 			"%s:\n"
 			"	.quad	%d\n"
 		;
-		switch(GetPrimSize(node->type)){
+		switch(GetTypeSize(node->type, node->cType)){
 			case 1:		format = "%s:\n	.byte	%d\n"; break;
 			case 4:		format = "%s:\n	.long	%d\n"; break;
 			case 8:		format = "%s:\n	.quad	%d\n"; break;
@@ -666,7 +666,7 @@ static char* GenDeclaration(ASTNode* node){
 	if(node->lhs != NULL){
 		const char* rhs = GenExpressionAsm(node->lhs);
 		const char* format = "%s	movq	%%rax,	%s\n";
-		switch(GetPrimSize(node->type)){
+		switch(GetTypeSize(node->type, node->cType)){
 			case 1:		format = "%s	movb	%%al,	%s\n";	break;
 			case 4:		format = "%s	movl	%%eax,	%s\n";	break;
 			case 8:		break;
@@ -676,7 +676,7 @@ static char* GenDeclaration(ASTNode* node){
 		expr = malloc(len * sizeof(char));
 		snprintf(expr, len, format, rhs, varLoc);
 	}
-	InsertVar(node->value.strVal, varLoc, node->type, scope);
+	InsertVar(node->value.strVal, varLoc, node->type, node->cType, scope);
 	return expr;
 }
 
@@ -799,7 +799,7 @@ static const char* GenBlockAsm(ASTNode* node){
 	if(!node->list->count)			return "";
 	EnterScope();
 	const char* statementAsm = GenerateAsmFromList(node->list);
-	int stackSize = GetLocalVarCount(scope) * 8;
+	int stackSize = align(GetLocalStackSize(scope), 8);
 	char* stackAlloc = calloc(1, sizeof(char));
 	char* stackDealloc = calloc(1, sizeof(char));
 	if(stackSize){
@@ -828,6 +828,13 @@ static const char* GenBlockAsm(ASTNode* node){
 	return str;
 }
 
+static char* GenStructDecl(ASTNode* node){
+	SymList* list = InsertStruct(node->value.strVal, MakeStructMembers(node->list));
+	if(node->lhs == NULL)				return calloc(1, sizeof(char));
+	if(node->lhs->op != A_Declare)		FatalM("Expected child node of struct to be declaration! (In gen.h)", __LINE__);
+	return GenDeclaration(node->lhs);
+}
+
 static const char* GenStatementAsm(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
 	switch(node->op){
@@ -840,6 +847,7 @@ static const char* GenStatementAsm(ASTNode* node){
 		case A_While:		return GenWhileLoop(node);
 		case A_Continue:	return GenContinue(node);
 		case A_Break:		return GenBreak(node);
+		case A_StructDecl:	return GenStructDecl(node);
 		default:			return GenExpressionAsm(node);
 	}
 }
@@ -887,7 +895,7 @@ static const char* GenFunctionAsm(ASTNode* node){
 			varLoc = malloc(charCount * sizeof(char));
 			snprintf(varLoc, charCount, format, offset);
 		}
-		InsertVar(params->id, varLoc, params->type, scope);
+		InsertVar(params->id, varLoc, params->type, NULL, scope);
 		const char* const format = "	movq	%s,	%s\n";
 		const int charCount = strlen(format) + strlen(varLoc) + strlen(paramPos) + 1;
 		char* buffer = calloc(charCount, sizeof(char));
@@ -982,7 +990,7 @@ char* GenerateAsm(ASTNodeList* node){
 			char* buffer = malloc(strlen(bss_section) + strlen(bss->val) + strlen(format) + 1);
 			SymEntry* var = FindVar(bss->val, 0);
 			if(var == NULL)	FatalM("Failed to find global variable! (In gen.h)", __LINE__);
-			sprintf(buffer, format, bss_section, bss->val, GetPrimSize(var->type));
+			sprintf(buffer, format, bss_section, bss->val, GetTypeSize(var->type, var->cType));
 			free(bss_section);
 			bss_section = buffer;
 			if(bss->prev != NULL)

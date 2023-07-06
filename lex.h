@@ -70,6 +70,7 @@ static Token* Tokenize(const char* str){
 		else if(streq(str, "|="))		token->type = T_PipeEqual;
 		else if(streq(str, "++"))		token->type = T_PlusPlus;
 		else if(streq(str, "--"))		token->type = T_MinusMinus;
+		else if(streq(str, "struct"))	token->type = T_Struct;
 		else if(isdigit(str[0])){
 			token->type = T_LitInt;
 			token->value.intVal = atoi(str);

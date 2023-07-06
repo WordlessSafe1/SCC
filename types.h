@@ -7,6 +7,19 @@
 #define TYPES_INCOMPATIBLE	0
 #define TYPES_WIDEN_LHS		-1
 #define TYPES_WIDEN_RHS		-2
+typedef enum ePrimordialType PrimordialType;
+typedef enum eTokenCategory TokenType;
+typedef enum eNodeType NodeType;
+typedef union flexible_value FlexibleValue;
+typedef struct doubly_linked_list DbLnkList;
+typedef struct param Parameter;
+typedef struct token Token;
+typedef struct ast_node ASTNode;
+typedef struct ast_node_list ASTNodeList;
+typedef enum eStructuralType StructuralType;
+typedef struct SymEntry SymEntry;
+typedef struct SymList SymList;
+
 
 // Bottom nibble stores level of reference
 // EG:
@@ -19,8 +32,8 @@ enum ePrimordialType {
 	P_Char		= 0x20,
 	P_Int		= 0x30,
 	P_Long		= 0x40,
+	P_Struct	= 0x50,
 };
-typedef enum ePrimordialType PrimordialType;
 
 enum eTokenCategory {
 	T_Undefined = 0,
@@ -82,8 +95,8 @@ enum eTokenCategory {
 	T_OpenBracket,
 	T_CloseBracket,
 	T_LitStr,
+	T_Struct,
 };
-typedef enum eTokenCategory TokenType;
 
 enum eNodeType {
 	A_Undefined = 0,
@@ -139,24 +152,21 @@ enum eNodeType {
 	A_AddressOf,
 	A_Dereference,
 	A_LitStr,
+	A_StructDecl,
 };
-typedef enum eNodeType NodeType;
 
 union flexible_value {
 	int intVal;
 	const char* strVal;
 	void* ptrVal;
 };
-typedef union flexible_value FlexibleValue;
 
-typedef struct doubly_linked_list DbLnkList;
 struct doubly_linked_list {
 	void* val;
 	DbLnkList* prev;
 	DbLnkList* next;
 };
 
-typedef struct param Parameter;
 struct param {
 	const char* id;
 	PrimordialType type;
@@ -168,7 +178,6 @@ struct token {
 	TokenType type;
 	FlexibleValue value;
 };
-typedef struct token Token;
 
 struct ast_node {
 	NodeType op;
@@ -179,15 +188,36 @@ struct ast_node {
 	struct ast_node_list *list;
 	FlexibleValue value;
 	FlexibleValue secondaryValue;
+	SymEntry* cType;
 };
-typedef struct ast_node ASTNode;
 
 struct ast_node_list {
 	ASTNode** nodes;
 	int count;
 	int size;
 };
-typedef struct ast_node_list ASTNodeList;
+
+enum eStructuralType {
+	S_Undefined = 0,
+	S_Variable,
+	S_Function,
+	S_Struct,
+	S_Member
+};
+
+struct SymEntry {
+	const char* key;
+	FlexibleValue value;
+	FlexibleValue sValue; // Secondary Value
+	PrimordialType type;
+	StructuralType sType;
+	SymEntry* cType; // Composite Type
+};
+
+struct SymList {
+	SymEntry* item;
+	SymList* next;
+};
 
 FlexibleValue FlexNULL();
 
@@ -207,7 +237,7 @@ ASTNodeList* AddNodeToASTList(ASTNodeList* list, ASTNode* node){
 	return list;
 }
 
-ASTNode* MakeASTNodeEx(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value, FlexibleValue secondValue){
+ASTNode* MakeASTNodeEx(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value, FlexibleValue secondValue, SymEntry* cType){
 	ASTNode* node = malloc(sizeof(ASTNode));
 	if(node == NULL)
 		FatalM("Failed to malloc in MakeASTNode()", Line);
@@ -219,30 +249,20 @@ ASTNode* MakeASTNodeEx(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, 
 	node->value = value;
 	node->secondaryValue = secondValue;
 	node->list = NULL;
+	node->cType = cType;
 	return node;
 }
 
-ASTNode* MakeASTNode(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value){
-	ASTNode* node = malloc(sizeof(ASTNode));
-	if(node == NULL)
-		FatalM("Failed to malloc in MakeASTNode()", Line);
-	node->op = op;
-	node->type = type;
-	node->lhs = lhs;
-	node->mid = mid;
-	node->rhs = rhs;
-	node->value = value;
-	node->secondaryValue = FlexNULL();
-	node->list = NULL;
-	return node;
+ASTNode* MakeASTNode(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value, SymEntry* cType){
+	return MakeASTNodeEx(op, type, lhs, mid, rhs, value, FlexNULL(), cType);
 }
 
 ASTNode* MakeASTBinary(int op, PrimordialType type, ASTNode* lhs, ASTNode* rhs, FlexibleValue value){
-	return MakeASTNode(op, type, lhs, NULL, rhs, value);
+	return MakeASTNode(op, type, lhs, NULL, rhs, value, NULL);
 }
 
 ASTNode* MakeASTLeaf(int op, PrimordialType type, FlexibleValue value){
-	return MakeASTNode(op, type, NULL, NULL, NULL, value);
+	return MakeASTNode(op, type, NULL, NULL, NULL, value, NULL);
 }
 
 ASTNode* MakeASTUnary(int op, ASTNode* lhs, FlexibleValue value){
@@ -273,7 +293,7 @@ FlexibleValue FlexNULL(){
 	return FlexPtr(NULL);
 }
 
-static int GetPrimSize(PrimordialType prim){
+int GetPrimSize(PrimordialType prim){
 	if(prim & 0xF)			return 8; // Pointer
 	switch(prim){
 		case P_Undefined:	return 0;
@@ -282,6 +302,16 @@ static int GetPrimSize(PrimordialType prim){
 		case P_Int:			return 4;
 		case P_Long:		return 8;
 		default:			FatalM("Unhandled primordial in GetPrimSize()! (In types.h)", __LINE__);
+	}
+}
+
+int GetTypeSize(PrimordialType type, SymEntry* compositeType){
+	if(type & 0xF)			return 8; // Pointer
+	switch(type){
+		case P_Struct:
+			if(compositeType == NULL)	FatalM("Expected composite type! (In types.h)", __LINE__);
+			return compositeType->sValue.intVal;
+		default:	return GetPrimSize(type);
 	}
 }
 

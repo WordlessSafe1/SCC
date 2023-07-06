@@ -13,5 +13,6 @@
 
 #define streq(lhs, rhs) !strcmp(lhs, rhs)
 #define intlen(n) (n ? (int)floor(log10(abs(n)) + 1) : 1)
+#define align(value, alignment) ((value + alignment - 1) & (-alignment))
 
 #endif

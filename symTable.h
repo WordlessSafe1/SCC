@@ -2,27 +2,6 @@
 
 #define CAPACITY 1000
 
-enum eStructuralType {
-	S_Undefined = 0,
-	S_Variable,
-	S_Function,
-};
-typedef enum eStructuralType StructuralType;
-
-struct SymEntry {
-	const char* key;
-	FlexibleValue value;
-	PrimordialType type;
-	StructuralType sType;
-};
-typedef struct SymEntry SymEntry;
-
-typedef struct SymList SymList;
-struct SymList {
-	SymEntry* item;
-	SymList* next;
-};
-
 static SymList* MakeSymList(SymEntry* entry, SymList* next){
 	SymList* ret = malloc(sizeof(SymList));
 	ret->item = entry;
@@ -30,36 +9,76 @@ static SymList* MakeSymList(SymEntry* entry, SymList* next){
 	return ret;
 }
 
-static SymEntry* MakeVarEntry(const char* key, const char* val, PrimordialType type){
+static SymEntry* MakeVarEntry(const char* key, const char* val, PrimordialType type, SymEntry* cType){
 	SymEntry* ret = malloc(sizeof(SymEntry));
 	ret->key = key;
 	ret->value = FlexStr(val);
 	ret->type = type;
 	ret->sType = S_Variable;
+	ret->cType = cType;
 	return ret;
 }
 
-static SymEntry* MakeFuncEntry(const char* key, FlexibleValue val, PrimordialType type){
+static SymEntry* MakeFuncEntry(const char* key, FlexibleValue val, PrimordialType type, SymEntry* cType){
 	SymEntry* ret = malloc(sizeof(SymEntry));
 	ret->key = key;
 	ret->value = val;
 	ret->type = type;
 	ret->sType = S_Function;
+	ret->cType = cType;
 	return ret;
+}
+
+static SymEntry* MakeStructEntry(const char* name, SymEntry* members){
+	SymEntry* ret = malloc(1 * sizeof(SymEntry));
+	ret->key = name;
+	ret->value.ptrVal = members;
+	SymEntry* pos = members;
+	ret->sValue.intVal = 0;
+	while(pos != NULL){
+		pos->value.intVal = ret->sValue.intVal;
+		ret->sValue.intVal += GetTypeSize(pos->type, pos->cType);
+		pos = pos->sValue.ptrVal;
+	}
+	ret->type = P_Struct;
+	ret->sType = S_Struct;
+	ret->cType = NULL;
+}
+
+SymEntry* MakeStructMember(const char* name, SymEntry* next, PrimordialType type, SymEntry* cType){
+	SymEntry* ret = malloc(sizeof(SymEntry));
+	ret->key = name;
+	ret->sValue.ptrVal = (void*)next;
+	ret->type = type;
+	ret->sType = S_Member;
+	ret->cType = cType;
+	return ret;
+}
+
+SymEntry* MakeStructMembers(ASTNodeList* list){
+	SymEntry* members = NULL;
+	for(int i = list->count - 1; i >= 0; i--){
+		ASTNode* node = list->nodes[i];
+		members = MakeStructMember(node->value.strVal, members, node->type, node->cType);
+	}
+	return members;
 }
 
 static SymList*** hashArray;
 static int* varCount;
+static int* stackSize;
 static int maxScope = 5;
 
 static void CreateScope(int scope){
 	while(maxScope <= scope){
 		hashArray	= realloc(hashArray,	(maxScope + 5) * sizeof(SymList**));
 		varCount	= realloc(varCount,		(maxScope + 5) * sizeof(int));
+		stackSize	= realloc(stackSize,	(maxScope + 5) * sizeof(int));
 		stackIndex	= realloc(stackIndex,	(maxScope + 5) * sizeof(int));
 		for(int i = 0; i < 5; i++){
 			hashArray[maxScope+i]	= NULL;
 			varCount[maxScope+i]	= 0;
+			stackSize[maxScope+i]	= 0;
 			stackIndex[maxScope+i]	= 0;
 		}
 		maxScope += 5;
@@ -74,10 +93,12 @@ void InitVarTable(){
 	// Allocate with the assumption of a maximum scope depth of 5
 	hashArray	= malloc(sizeof(SymList**) * 5);
 	varCount	= malloc(sizeof(int) * 5);
+	stackSize	= malloc(sizeof(int) * 5);
 	stackIndex	= malloc(sizeof(int) * 5);
 	for (int i = 0; i < 5; i++){
 		hashArray[i] = NULL;
 		varCount[i] = 0;
+		stackSize[i] = 0;
 		stackIndex[i] = 0;
 	}
 	CreateScope(0);
@@ -91,6 +112,7 @@ void DestroyVarTable(int scope){
 	free(hashArray[scope]);
 	hashArray[scope] = NULL;
 	varCount[scope] = 0;
+	stackSize[scope] = 0;
 }
 
 void ResetVarTable(int scope) {
@@ -142,55 +164,85 @@ SymEntry* FindLocalVar(const char* key, int scope){
 	return FindVarPosition(key, scope, true);
 }
 
-SymList* InsertVar(const char* key, const char* value, PrimordialType type, int scope){
+SymList* InsertVar(const char* key, const char* value, PrimordialType type, SymEntry* cType, int scope){
 	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
 	if(hashArray[scope] == NULL)
 		return NULL;
 	SymList* list = hashArray[scope][hash];
 	if(list == NULL){
 		varCount[scope]++;
-		return hashArray[scope][hash] = MakeSymList(MakeVarEntry(key, value, type), NULL);
+		stackSize[scope] += GetTypeSize(type, cType);
+		return hashArray[scope][hash] = MakeSymList(MakeVarEntry(key, value, type, cType), NULL);
 	}
 	while((!streq(list->item->key, key) || list->item->sType != S_Variable)&& list->next != NULL)
 		list = list->next;
 	if(!streq(list->item->key, key)){
 		varCount[scope]++;
-		return list->next = MakeSymList(MakeVarEntry(key, value, type), NULL);
+		stackSize[scope] += GetTypeSize(type, cType);
+		return list->next = MakeSymList(MakeVarEntry(key, value, type, cType), NULL);
 	}
 	list->item->value = FlexStr(value);
 	return list;
 }
 
-SymList* InsertFunc(const char* key, FlexibleValue params, PrimordialType type){
+SymList* InsertFunc(const char* key, FlexibleValue params, PrimordialType type, SymEntry* cType){
 	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
 	if(hashArray[0] == NULL)
 		return NULL;
 	SymList* list = hashArray[0][hash];
 	if(list == NULL)
-		return hashArray[0][hash] = MakeSymList(MakeFuncEntry(key, params, type), NULL);
+		return hashArray[0][hash] = MakeSymList(MakeFuncEntry(key, params, type, cType), NULL);
 	while((!streq(list->item->key, key) || list->item->sType != S_Function) && list->next != NULL)
 		list = list->next;
 	if(!streq(list->item->key, key))
-		return list->next = MakeSymList(MakeFuncEntry(key, params, type), NULL);
+		return list->next = MakeSymList(MakeFuncEntry(key, params, type, cType), NULL);
 	return list;
 }
 
-SymEntry* FindFunc(const char* key){
+SymList* InsertStruct(const char* name, SymEntry* members){
+	
+	int hash = hash_oaat(name, strlen(name)) % CAPACITY;
+	if(hashArray[0] == NULL)
+		return NULL;
+	SymList* list = hashArray[0][hash];
+	if(list == NULL)
+		return hashArray[0][hash] = MakeSymList(MakeStructEntry(name, members), NULL);
+	while((!streq(list->item->key, name) || list->item->sType != S_Struct) && list->next != NULL)
+		list = list->next;
+	if(!streq(list->item->key, name))
+		return list->next = MakeSymList(MakeStructEntry(name, members), NULL);
+	list->item = MakeStructEntry(name, members);
+	return list;
+}
+
+static SymEntry* FindGlobal(const char* key, StructuralType type){
 	if(hashArray[0] == NULL)
 		return NULL;
 	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
 	SymList* list = hashArray[0][hash];
 	if(list == NULL)
 		return NULL;
-	while((!streq(list->item->key, key) || list->item->sType != S_Function) && list->next != NULL)
+	while((!streq(list->item->key, key) || list->item->sType != type) && list->next != NULL)
 		list = list->next;
-	if(!streq(list->item->key, key) || list->item->sType != S_Function)
+	if(!streq(list->item->key, key) || list->item->sType != type)
 		return NULL;
 	return list->item;
 }
 
+SymEntry* FindFunc(const char* key){
+	return FindGlobal(key, S_Function);
+}
+
+SymEntry* FindStruct(const char* key){
+	return FindGlobal(key, S_Struct);
+}
+
 int GetLocalVarCount(int scope){
 	return varCount[scope];
+}
+
+int GetLocalStackSize(int scope){
+	return stackSize[scope];
 }
 
 int EnterScope(){

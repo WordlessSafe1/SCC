@@ -62,9 +62,9 @@ int main(int argc, char** argv){
 	}
 	if (inputs == 0)	FatalM("No input files specified!", NOLINE);
 	for(int i = 0; i < inputs; i++){
-		char* outputTarget = outputTarget;
-		if(inputs != 1 || !asASM)
-			outputTarget = NULL;
+		const char* output = outputTarget;
+		if(!dump && (inputs != 1 || !asASM))
+			output = NULL;
 		fptr = fopen(inputTargets[i], "r");
 		Line = 1;
 		ASTNodeList* ast = MakeASTNodeList();
@@ -74,7 +74,7 @@ int main(int argc, char** argv){
 		fclose(fptr);
 		Line = NOLINE;
 		if(dump){
-			if(outputTarget == NULL || print){
+			if(output == NULL || print){
 				if(supIntl)
 					printf("%s", "#ifdef __INTELLISENSE__\n" "	#pragma diag_suppress 29\n" "	#pragma diag_suppress 169\n" "	#pragma diag_suppress 130\n" "#endif");
 				for(int i = 0; i < ast->count; i++){
@@ -85,7 +85,7 @@ int main(int argc, char** argv){
 				putchar('\n');
 				break;
 			}
-			fptr = fopen(outputTarget, "w");
+			fptr = fopen(output, "w");
 			if(supIntl)
 				fprintf(fptr, "%s", "#ifdef __INTELLISENSE__\n" "	#pragma diag_suppress 29\n" "	#pragma diag_suppress 169\n" "	#pragma diag_suppress 130\n" "#endif");
 			for(int i = 0; i < ast->count; i++){
@@ -95,7 +95,7 @@ int main(int argc, char** argv){
 			}
 			putc('\n', fptr);
 			fclose(fptr);
-			return 0;
+			break;
 		}
 		ResetVarTable(0);
 		char* Asm = GenerateAsm(ast);
@@ -103,27 +103,28 @@ int main(int argc, char** argv){
 			printf("%s", Asm);
 			break;
 		}
-		if(outputTarget == NULL)
-			outputTarget = AlterFileExtension(inputTargets[i], "s");
-		fptr = fopen(outputTarget, "w");
+		if(output == NULL)
+			output = AlterFileExtension(inputTargets[i], "s");
+		fptr = fopen(output, "w");
 		fprintf(fptr, "%s", Asm);
 		fclose(fptr);
 		if(asASM)	return 0;
 		{
 			const char* format = "as -o %s %s";
 			char* outfilename = AlterFileExtension(inputTargets[i], "o");
-			int charCount = strlen(outfilename) + strlen(outputTarget) + strlen(format) + 1;
+			int charCount = strlen(outfilename) + strlen(output) + strlen(format) + 1;
 			char* cmd = malloc(charCount * sizeof(char));
-			snprintf(cmd, charCount * sizeof(char), format, outfilename, outputTarget);
+			snprintf(cmd, charCount * sizeof(char), format, outfilename, output);
 			system(cmd);
-			unlink(outputTarget);
+			_unlink(output);
 			free(outfilename);
 			free(cmd);
 		}
 		free(Asm);
 	}
+	if(dump)	return 0;
 	{
-		char* cmd = strdup("cc -o ");
+		char* cmd = _strdup("cc -o ");
 		int charCount = strlen(cmd) + strlen(outputTarget) + 1;
 		cmd = realloc(cmd, charCount * sizeof(char));
 		strcat(cmd, outputTarget);
@@ -139,7 +140,7 @@ int main(int argc, char** argv){
 		system(cmd);
 		for(int i = 0; i < inputs; i++){
 			char* targ = AlterFileExtension(inputTargets[i], "o");
-			unlink(targ);
+			_unlink(targ);
 			free(targ);
 		}
 	}
@@ -203,6 +204,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_VarRef:				val = tree->value.strVal;	break;
 		case A_Assign:				val = tree->value.strVal == NULL ? "expr" : tree->value.strVal;	break;
 		case A_FunctionCall:		val = tree->value.strVal;	break;
+		case A_LitStr:				val = tree->value.strVal;	break;
 		case A_LitInt:{
 			const int charCount = intlen(tree->value.intVal) + (tree->value.intVal < 0) + 1;
 			char* buffer = malloc(charCount * sizeof(char));
@@ -265,14 +267,17 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_FunctionCall:		name = "FunctionCall";		break;
 		case A_AddressOf:			name = "AddressOf";			break;
 		case A_Dereference:			name = "Dereference";		break;
+		case A_LitStr:				name = "LitString";			break;
+		case A_StructDecl:				name = "StructDecl";	break;
 	}
 	const char* type = calloc(1, sizeof(char));
 	switch(tree->type & 0xF0){
 		case P_Undefined:	break;
-		case P_Void:		type = "void";	break;
-		case P_Char:		type = "char";	break;
-		case P_Int:			type = "int";	break;
-		case P_Long:		type = "long";	break;
+		case P_Void:		type = "void";		break;
+		case P_Char:		type = "char";		break;
+		case P_Int:			type = "int";		break;
+		case P_Long:		type = "long";		break;
+		case P_Struct:		type = "struct";	break;
 	}
 	if(tree->type & 0x0F){
 		int deref = tree->type & 0x0F;

@@ -21,10 +21,11 @@ PrimordialType GetType(Token* t){
 PrimordialType ParseType(){
 	PrimordialType type;
 	switch(PeekToken()->type){
-		case T_Int:		type = P_Int;	break;
-		case T_Char:	type = P_Char;	break;
-		case T_Void:	type = P_Void;	break;
-		case T_Long:	type = P_Long;	break;
+		case T_Int:		type = P_Int;		break;
+		case T_Char:	type = P_Char;		break;
+		case T_Void:	type = P_Void;		break;
+		case T_Long:	type = P_Long;		break;
+		case T_Struct:	return P_Struct;	// Structs must be parsed with ParseStructRef()
 		default:		return P_Undefined;
 	}
 	GetToken();
@@ -34,6 +35,14 @@ PrimordialType ParseType(){
 		type++;
 	}
 	return type;
+}
+
+SymEntry* ParseStructRef(){
+	if(GetToken()->type != T_Struct)	FatalM("Aliased structs not yet supported! (Internal @ parse.h)", __LINE__);
+	Token* tok = GetToken();
+	if(tok->type != T_Identifier)		FatalM("Expected identifier after 'struct' keyword!", Line);
+	const char* id = tok->value.strVal;
+	return FindStruct(id);
 }
 
 ASTNode* ParseFunctionCall(Token* tok){
@@ -57,11 +66,14 @@ ASTNode* ParseFunctionCall(Token* tok){
 	if(paramPrototype != NULL)				FatalM("Too few arguments in function call!", Line);
 	if(GetToken()->type != T_CloseParen)	FatalM("Missing close parenthesis in function call!", Line);
 	PrimordialType type = P_Undefined;
+	SymEntry* cType = NULL;
 	if(func == NULL)
 		WarnM("Implicit function declaration!", Line);
-	else
+	else{
 		type = func->type;
-	return MakeASTNodeEx(A_FunctionCall, type, NULL, NULL, NULL, FlexStr(tok->value.strVal), FlexPtr(params));
+		cType = func->cType;
+	}
+	return MakeASTNodeEx(A_FunctionCall, type, NULL, NULL, NULL, FlexStr(tok->value.strVal), FlexPtr(params), cType);
 }
 
 ASTNode* ParseVariableReference(Token* outerTok){
@@ -95,14 +107,14 @@ ASTNode* ParseFactor(){
 			PrimordialType t = fctr->type;
 			if(t == P_Undefined)		FatalM("Expression type not determined!", Line);
 			if((t & 0xF) == 0xF)		FatalM("Indirection limit exceeded!", Line);
-			return MakeASTNode(A_AddressOf,		fctr->type + 1,	fctr,	NULL,	NULL,	FlexNULL());
+			return MakeASTNode(A_AddressOf,		fctr->type + 1,	fctr,	NULL,	NULL,	FlexNULL(), fctr->cType);
 		}
 		case T_Asterisk:{
 			ASTNode* fctr = ParseFactor();
 			PrimordialType t = fctr->type;
 			if(t == P_Undefined)		FatalM("Expression type not determined!", Line);
 			if(!(t & 0xF))				FatalM("Can't dereference a non-pointer!", Line);
-			return MakeASTNode(A_Dereference,	fctr->type - 1,	fctr,	NULL,	NULL,	FlexNULL());
+			return MakeASTNode(A_Dereference,	fctr->type - 1,	fctr,	NULL,	NULL,	FlexNULL(), fctr->cType);
 		}
 		case T_Identifier:
 			if(PeekToken()->type == T_OpenParen)
@@ -328,7 +340,7 @@ ASTNode* ParseConditionalExpression(){
 	ASTNode* otherwise = ParseConditionalExpression();
 	PrimordialType type = NodeWidestType((then != NULL ? then : condition), otherwise);
 	if(type == P_Undefined)					FatalM("Types of expression members are incompatible!", Line);
-	return MakeASTNode(A_Ternary, type, condition, then, otherwise, FlexNULL());
+	return MakeASTNode(A_Ternary, type, condition, then, otherwise, FlexNULL(), NULL);
 }
 
 ASTNode* ParseAssignmentExpression(){
@@ -379,11 +391,12 @@ ASTNode* ParseReturnStatement(){
 ASTNode* ParseDeclaration(){
 	PrimordialType type = ParseType();
 	if(type == P_Undefined)			FatalM("Expected typename!", Line);
+	SymEntry* cType = (type == P_Struct) ? ParseStructRef() : NULL;
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)	FatalM("Expected identifier!", Line);
 	const char* id = tok->value.strVal;
-	InsertVar(id, NULL, type, scope);
-	if(PeekToken()->type != T_Equal)	return MakeASTLeaf(A_Declare, type, FlexStr(id));
+	InsertVar(id, NULL, type, cType, scope);
+	if(PeekToken()->type != T_Equal)	return MakeASTNode(A_Declare, type, NULL, NULL, NULL, FlexStr(id), cType);
 	GetToken();
 	ASTNode* expr = ParseExpression();
 	int typeCompat = CheckTypeCompatibility(type, expr->type);
@@ -394,13 +407,13 @@ ASTNode* ParseDeclaration(){
 	}
 	if(!scope){
 		if(expr->op != A_LitInt)	FatalM("Non-constant expression in global varibale declaration!", Line);
-		int typeSize = GetPrimSize(type);
-		if(expr->value.intVal >= (1 << (8 * typeSize))){
+		int typeSize = GetTypeSize(type, cType);
+		// If expression result is too large to fit in variable, truncate it
+		if(expr->value.intVal >= (1 << (8 * typeSize)))
 			expr->value.intVal &= (1 << (8 * typeSize)) - 1;
-		}
-		return MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(expr->value.intVal));
+		return MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(expr->value.intVal), cType);
 	}
-	return MakeASTNode(A_Declare, type, expr, NULL, NULL, FlexStr(id));
+	return MakeASTNode(A_Declare, type, expr, NULL, NULL, FlexStr(id), cType);
 }
 
 ASTNode* ParseIfStatement(){
@@ -413,7 +426,7 @@ ASTNode* ParseIfStatement(){
 		return MakeASTBinary(A_If, P_Undefined, condition, then, FlexNULL());
 	GetToken();
 	ASTNode* otherwise = ParseStatement();
-	return MakeASTNode(A_If, P_Undefined, condition, otherwise, then, FlexNULL());
+	return MakeASTNode(A_If, P_Undefined, condition, otherwise, then, FlexNULL(), NULL);
 }
 
 ASTNode* ParseWhileLoop(){
@@ -452,7 +465,7 @@ ASTNode* ParseForLoop(){
 	ASTNode* modifier	= PeekToken()->type == T_CloseParen ? NULL : ParseExpression();
 	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in for loop!", Line);
 	ASTNode* stmt = ParseStatement();
-	ASTNode* header = MakeASTNode(A_Glue, P_Undefined, initializer, condition, modifier, FlexNULL());
+	ASTNode* header = MakeASTNode(A_Glue, P_Undefined, initializer, condition, modifier, FlexNULL(), NULL);
 	ExitScope();
 	return MakeASTBinary(A_For, P_Undefined, header, stmt, FlexNULL());
 }
@@ -472,6 +485,7 @@ ASTNode* ParseStatement(){
 	}
 	ASTNode* expr = NULL;
 	switch(tok->type){
+		case T_Struct:
 		case T_Char:
 		case T_Int:			expr = ParseDeclaration();	break;
 		default:			expr = ParseExpression();	break;
@@ -494,6 +508,7 @@ ASTNode* ParseBlock(){
 ASTNode* ParseFunction(){
 	PrimordialType type = ParseType();
 	if(type == P_Undefined)					FatalM("Invalid function declaration; Expected typename.", Line);
+	SymEntry* cType = type == P_Struct ? ParseStructRef() : NULL;
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)			FatalM("Invalid function declaration; Expected identifier.", Line);
 	int idLen = strlen(tok->value.strVal) + 1;
@@ -518,37 +533,78 @@ ASTNode* ParseFunction(){
 		while (params->prev != NULL)
 			params = params->prev;
 	if(GetToken()->type != T_CloseParen)	FatalM("Invalid function declaration; Expected close parenthesis ')'.", Line);
-	InsertFunc(idStr, FlexPtr(params), type);
+	InsertFunc(idStr, FlexPtr(params), type, NULL);
 	if(PeekToken()->type == T_Semicolon){
 		GetToken();
-		return MakeASTNodeEx(A_Function, type, NULL, NULL, NULL, FlexStr(idStr), FlexPtr(params));
+		return MakeASTNodeEx(A_Function, type, NULL, NULL, NULL, FlexStr(idStr), FlexPtr(params), cType);
 	}
 	EnterScope();
 	if(params != NULL){
 		Parameter* p = params;
 		do {
-			InsertVar(p->id, NULL, p->type, scope);
+			InsertVar(p->id, NULL, p->type, NULL, scope);
 			p = p->next;
 		} while( p != NULL);
 	}
 	if(PeekToken()->type != T_OpenBrace)	FatalM("Invalid function declaration; Expected open brace '{'.", Line);
 	ASTNode* block = ParseBlock();
 	ExitScope();
-	return MakeASTNodeEx(A_Function, type, block, NULL, NULL, FlexStr(idStr), FlexPtr(params));
+	return MakeASTNodeEx(A_Function, type, block, NULL, NULL, FlexStr(idStr), FlexPtr(params), cType);
 	// return MakeASTUnary(A_Function, stmt, 0, identifier->value.strVal);
+}
+
+ASTNode* ParseStructDeclaration(){
+	if(GetToken()->type != T_Struct)		FatalM("Expected 'struct' keyword!", Line);
+	Token* tok = GetToken();
+	if(tok->type != T_Identifier)			FatalM("Anonymous structs not yet implemented!", Line);
+	const char* identifier = tok->value.strVal;
+	if(PeekToken()->type == T_Semicolon){
+		// Existing reference OR incomplete
+		FatalM("Struct references and incomplete struct declarations not yet supported!", Line);
+	}
+	if(GetToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' in struct declaration!", Line);
+	ASTNodeList* memberNodes = MakeASTNodeList();
+	while(PeekToken()->type != T_CloseBrace){
+		ASTNode* decl = ParseDeclaration();
+		if(decl->lhs != NULL)				FatalM("Struct member initializers not yet supported!", Line);
+		AddNodeToASTList(memberNodes, decl);
+		if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon following struct member declaration!", Line);
+	}
+	if(GetToken()->type != T_CloseBrace)	FatalM("Expected close brace '}' in struct declaration!", Line);
+	SymList* list = InsertStruct(identifier, MakeStructMembers(memberNodes));
+	if(list == NULL)						FatalM("Failed to create struct definition! (In parse.h)", __LINE__);
+	if(PeekToken()->type != T_Identifier){
+		if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon after struct declaratioin!", Line);
+		return MakeASTList(A_StructDecl, memberNodes, FlexStr(identifier));
+	}
+	while(!streq(list->item->key, identifier) && list->next != NULL)
+		list = list->next;
+	if(!streq(list->item->key, identifier))	FatalM("Failed to find struct definition after creation! (In parse.h)", __LINE__);
+	SymEntry* entry = list->item;
+	ASTNode* varDecl = MakeASTLeaf(A_Declare, P_Struct, GetToken()->value);
+	varDecl->cType = entry;
+	if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon after struct declaratioin!", Line);
+	ASTNode* ret = MakeASTList(A_StructDecl, memberNodes, FlexStr(identifier));
+	ret->lhs = varDecl;
+	return ret;
 }
 
 ASTNode* ParseNode(){
 	int i = 0;
 	Token* tok = PeekTokenN(i);
-	while(tok->type != T_OpenParen && tok->type != T_Equal && tok->type != T_Semicolon)
+	while(tok->type != T_OpenParen && tok->type != T_Equal && tok->type != T_Semicolon && tok->type != T_OpenBrace)
 		tok = PeekTokenN(++i);
-	if(tok->type != T_Equal && tok->type != T_Semicolon)
-		return ParseFunction();
-	ASTNode* decl = ParseDeclaration();
-	if(GetToken()->type != T_Semicolon)
-		FatalM("Expected semicolon after declaration!", Line);
-	return decl;
+	switch(tok->type){
+		case T_Equal:
+		case T_Semicolon:{
+			ASTNode* decl = ParseDeclaration();
+			if(GetToken()->type != T_Semicolon)
+				FatalM("Expected semicolon after declaration!", Line);
+			return decl;
+		}
+		case T_OpenBrace:	return ParseStructDeclaration();
+		default:			return ParseFunction();
+	}
 }
 
 #endif
