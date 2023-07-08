@@ -37,15 +37,33 @@ static SymEntry* MakeStructEntry(const char* name, SymEntry* members){
 	ret->sValue.intVal = 0;
 	while(pos != NULL){
 		pos->value.intVal = ret->sValue.intVal;
-		ret->sValue.intVal += align(GetTypeSize(pos->type, pos->cType), 4);
+		ret->sValue.intVal += GetTypeSize(pos->type, pos->cType);
 		pos = pos->sValue.ptrVal;
 	}
-	ret->type = P_Struct;
-	ret->sType = S_Struct;
+	ret->type = P_Composite;
+	ret->sType = S_Composite;
 	ret->cType = NULL;
 }
 
-SymEntry* MakeStructMember(const char* name, SymEntry* next, PrimordialType type, SymEntry* cType){
+static SymEntry* MakeUnionEntry(const char* name, SymEntry* members){
+	SymEntry* ret = malloc(1 * sizeof(SymEntry));
+	ret->key = name;
+	ret->value.ptrVal = members;
+	SymEntry* pos = members;
+	ret->sValue.intVal = 0;
+	while(pos != NULL){
+		pos->value.intVal = 0;
+		int size = GetTypeSize(pos->type, pos->cType);
+		if(ret->sValue.intVal < size)
+			ret->sValue.intVal = size;
+		pos = pos->sValue.ptrVal;
+	}
+	ret->type = P_Composite;
+	ret->sType = S_Composite;
+	ret->cType = NULL;
+}
+
+SymEntry* MakeCompMember(const char* name, SymEntry* next, PrimordialType type, SymEntry* cType){
 	SymEntry* ret = malloc(sizeof(SymEntry));
 	ret->key = name;
 	ret->sValue.ptrVal = (void*)next;
@@ -55,11 +73,11 @@ SymEntry* MakeStructMember(const char* name, SymEntry* next, PrimordialType type
 	return ret;
 }
 
-SymEntry* MakeStructMembers(ASTNodeList* list){
+SymEntry* MakeCompMembers(ASTNodeList* list){
 	SymEntry* members = NULL;
 	for(int i = list->count - 1; i >= 0; i--){
 		ASTNode* node = list->nodes[i];
-		members = MakeStructMember(node->value.strVal, members, node->type, node->cType);
+		members = MakeCompMember(node->value.strVal, members, node->type, node->cType);
 	}
 	return members;
 }
@@ -200,18 +218,32 @@ SymList* InsertFunc(const char* key, FlexibleValue params, PrimordialType type, 
 }
 
 SymList* InsertStruct(const char* name, SymEntry* members){
-	
 	int hash = hash_oaat(name, strlen(name)) % CAPACITY;
 	if(hashArray[0] == NULL)
 		return NULL;
 	SymList* list = hashArray[0][hash];
 	if(list == NULL)
 		return hashArray[0][hash] = MakeSymList(MakeStructEntry(name, members), NULL);
-	while((!streq(list->item->key, name) || list->item->sType != S_Struct) && list->next != NULL)
+	while((!streq(list->item->key, name) || list->item->sType != S_Composite) && list->next != NULL)
 		list = list->next;
 	if(!streq(list->item->key, name))
 		return list->next = MakeSymList(MakeStructEntry(name, members), NULL);
 	list->item = MakeStructEntry(name, members);
+	return list;
+}
+
+SymList* InsertUnion(const char* name, SymEntry* members){
+	int hash = hash_oaat(name, strlen(name)) % CAPACITY;
+	if(hashArray[0] == NULL)
+		return NULL;
+	SymList* list = hashArray[0][hash];
+	if(list == NULL)
+		return hashArray[0][hash] = MakeSymList(MakeUnionEntry(name, members), NULL);
+	while((!streq(list->item->key, name) || list->item->sType != S_Composite) && list->next != NULL)
+		list = list->next;
+	if(!streq(list->item->key, name))
+		return list->next = MakeSymList(MakeUnionEntry(name, members), NULL);
+	list->item = MakeUnionEntry(name, members);
 	return list;
 }
 
@@ -234,7 +266,7 @@ SymEntry* FindFunc(const char* key){
 }
 
 SymEntry* FindStruct(const char* key){
-	return FindGlobal(key, S_Struct);
+	return FindGlobal(key, S_Composite);
 }
 
 int GetLocalVarCount(int scope){

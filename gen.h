@@ -853,7 +853,7 @@ static const char* GenBlockAsm(ASTNode* node){
 }
 
 static char* GenStructDecl(ASTNode* node){
-	SymList* list = InsertStruct(node->value.strVal, MakeStructMembers(node->list));
+	SymList* list = InsertStruct(node->value.strVal, MakeCompMembers(node->list));
 	if(node->lhs == NULL)				return calloc(1, sizeof(char));
 	if(node->lhs->op != A_Declare)		FatalM("Expected child node of struct to be declaration! (In gen.h)", __LINE__);
 	return GenDeclaration(node->lhs);

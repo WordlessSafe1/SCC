@@ -32,7 +32,7 @@ enum ePrimordialType {
 	P_Char		= 0x20,
 	P_Int		= 0x30,
 	P_Long		= 0x40,
-	P_Struct	= 0x50,
+	P_Composite	= 0x50,
 };
 
 enum eTokenCategory {
@@ -98,6 +98,7 @@ enum eTokenCategory {
 	T_Struct,
 	T_Arrow,
 	T_Period,
+	T_Union,
 };
 
 enum eNodeType {
@@ -203,7 +204,7 @@ enum eStructuralType {
 	S_Undefined = 0,
 	S_Variable,
 	S_Function,
-	S_Struct,
+	S_Composite,
 	S_Member
 };
 
@@ -310,7 +311,7 @@ int GetPrimSize(PrimordialType prim){
 int GetTypeSize(PrimordialType type, SymEntry* compositeType){
 	if(type & 0x0F)			return 8; // Pointer
 	switch(type & 0xF0){
-		case P_Struct:
+		case P_Composite:
 			if(compositeType == NULL)	FatalM("Expected composite type! (In types.h)", __LINE__);
 			return compositeType->sValue.intVal;
 		default:	return GetPrimSize(type);

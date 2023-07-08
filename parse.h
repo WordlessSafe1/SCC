@@ -25,7 +25,8 @@ PrimordialType ParseType(){
 		case T_Char:	type = P_Char;		break;
 		case T_Void:	type = P_Void;		break;
 		case T_Long:	type = P_Long;		break;
-		case T_Struct:	return P_Struct;	// Structs must be parsed with ParseStructRef()
+		case T_Union:
+		case T_Struct:	return P_Composite;	// Structs must be parsed with ParseCompRef()
 		default:		return P_Undefined;
 	}
 	GetToken();
@@ -37,11 +38,32 @@ PrimordialType ParseType(){
 	return type;
 }
 
-/// @brief Parse a struct reference.
+PrimordialType PeekType(){
+	PrimordialType type;
+	switch(PeekToken()->type){
+		case T_Int:		type = P_Int;		break;
+		case T_Char:	type = P_Char;		break;
+		case T_Void:	type = P_Void;		break;
+		case T_Long:	type = P_Long;		break;
+		case T_Union:
+		case T_Struct:	return P_Composite;	// Structs must be parsed with ParseCompRef()
+		default:		return P_Undefined;
+	}
+	int i = 1;
+	while(PeekTokenN(i++)->type == T_Asterisk){
+		if((type & 0xF) == 0xF)	FatalM("Indirection limit exceeded!", Line);
+		type++;
+	}
+	return type;
+}
+
+/// @brief Parse a composite reference.
 /// @param type [OUT] Address of type; will be modified to account for pointers.
 /// @return A pointer to the struct definition.
-SymEntry* ParseStructRef(PrimordialType* type){
-	if(GetToken()->type != T_Struct)	FatalM("Aliased structs not yet supported! (Internal @ parse.h)", __LINE__);
+SymEntry* ParseCompRef(PrimordialType* type){
+	Token* cTok = GetToken();
+	if(cTok->type != T_Struct && cTok->type != T_Union)
+		FatalM("Aliased composites not yet supported! (Internal @ parse.h)", __LINE__);
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)		FatalM("Expected identifier after 'struct' keyword!", Line);
 	const char* id = tok->value.strVal;
@@ -419,7 +441,7 @@ ASTNode* ParseReturnStatement(){
 ASTNode* ParseDeclaration(){
 	PrimordialType type = ParseType();
 	if(type == P_Undefined)			FatalM("Expected typename!", Line);
-	SymEntry* cType = (type == P_Struct) ? ParseStructRef(&type) : NULL;
+	SymEntry* cType = (type == P_Composite) ? ParseCompRef(&type) : NULL;
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)	FatalM("Expected identifier!", Line);
 	const char* id = tok->value.strVal;
@@ -511,13 +533,7 @@ ASTNode* ParseStatement(){
 		case T_Break:		GetToken(); return MakeASTLeaf(A_Break, P_Undefined, FlexNULL());
 		default:			break;
 	}
-	ASTNode* expr = NULL;
-	switch(tok->type){
-		case T_Struct:
-		case T_Char:
-		case T_Int:			expr = ParseDeclaration();	break;
-		default:			expr = ParseExpression();	break;
-	}
+	ASTNode* expr = (PeekType() == P_Undefined) ? ParseExpression() : ParseDeclaration();
 	if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon!", Line);
 	return expr;
 }
@@ -536,7 +552,7 @@ ASTNode* ParseBlock(){
 ASTNode* ParseFunction(){
 	PrimordialType type = ParseType();
 	if(type == P_Undefined)					FatalM("Invalid function declaration; Expected typename.", Line);
-	SymEntry* cType = type == P_Struct ? ParseStructRef(&type) : NULL;
+	SymEntry* cType = type == P_Composite ? ParseCompRef(&type) : NULL;
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)			FatalM("Invalid function declaration; Expected identifier.", Line);
 	int idLen = strlen(tok->value.strVal) + 1;
@@ -581,35 +597,39 @@ ASTNode* ParseFunction(){
 	// return MakeASTUnary(A_Function, stmt, 0, identifier->value.strVal);
 }
 
-ASTNode* ParseStructDeclaration(){
-	if(GetToken()->type != T_Struct)		FatalM("Expected 'struct' keyword!", Line);
+ASTNode* ParseCompositeDeclaration(){
+	Token* cTok = GetToken();
+	if(cTok->type != T_Struct && cTok->type != T_Union)
+		FatalM("Expected composite type!", Line);
 	Token* tok = GetToken();
-	if(tok->type != T_Identifier)			FatalM("Anonymous structs not yet implemented!", Line);
+	if(tok->type != T_Identifier)			FatalM("Anonymous composites not yet implemented!", Line);
 	const char* identifier = tok->value.strVal;
 	if(PeekToken()->type == T_Semicolon){
-		// Existing reference OR incomplete
-		FatalM("Struct references and incomplete struct declarations not yet supported!", Line);
+		// incomplete type
+		FatalM("Incomplete composite declarations not yet supported!", Line);
 	}
-	if(GetToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' in struct declaration!", Line);
+	if(GetToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' in composite declaration!", Line);
 	ASTNodeList* memberNodes = MakeASTNodeList();
 	while(PeekToken()->type != T_CloseBrace){
 		ASTNode* decl = ParseDeclaration();
-		if(decl->lhs != NULL)				FatalM("Struct member initializers not yet supported!", Line);
+		if(decl->lhs != NULL)				FatalM("Composite member initializers not yet supported!", Line);
 		AddNodeToASTList(memberNodes, decl);
-		if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon following struct member declaration!", Line);
+		if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon following composite member declaration!", Line);
 	}
-	if(GetToken()->type != T_CloseBrace)	FatalM("Expected close brace '}' in struct declaration!", Line);
-	SymList* list = InsertStruct(identifier, MakeStructMembers(memberNodes));
-	if(list == NULL)						FatalM("Failed to create struct definition! (In parse.h)", __LINE__);
+	if(GetToken()->type != T_CloseBrace)	FatalM("Expected close brace '}' in composite declaration!", Line);
+	SymList* list = cTok->type == T_Struct
+		? InsertStruct(identifier, MakeCompMembers(memberNodes))
+		: InsertUnion(identifier, MakeCompMembers(memberNodes));
+	if(list == NULL)						FatalM("Failed to create composite definition! (In parse.h)", __LINE__);
 	if(PeekToken()->type != T_Identifier){
-		if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon after struct declaratioin!", Line);
+		if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon after composite declaration!", Line);
 		return MakeASTList(A_StructDecl, memberNodes, FlexStr(identifier));
 	}
 	while(!streq(list->item->key, identifier) && list->next != NULL)
 		list = list->next;
-	if(!streq(list->item->key, identifier))	FatalM("Failed to find struct definition after creation! (In parse.h)", __LINE__);
+	if(!streq(list->item->key, identifier))	FatalM("Failed to find composite definition after creation! (In parse.h)", __LINE__);
 	SymEntry* entry = list->item;
-	ASTNode* varDecl = MakeASTLeaf(A_Declare, P_Struct, GetToken()->value);
+	ASTNode* varDecl = MakeASTLeaf(A_Declare, P_Composite, GetToken()->value);
 	varDecl->cType = entry;
 	if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon after struct declaratioin!", Line);
 	ASTNode* ret = MakeASTList(A_StructDecl, memberNodes, FlexStr(identifier));
@@ -630,7 +650,7 @@ ASTNode* ParseNode(){
 				FatalM("Expected semicolon after declaration!", Line);
 			return decl;
 		}
-		case T_OpenBrace:	return ParseStructDeclaration();
+		case T_OpenBrace:	return ParseCompositeDeclaration();
 		default:			return ParseFunction();
 	}
 }

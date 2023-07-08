@@ -281,7 +281,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case P_Char:		type = "char";		break;
 		case P_Int:			type = "int";		break;
 		case P_Long:		type = "long";		break;
-		case P_Struct:		type = "struct";	break;
+		case P_Composite:	type = "struct";	break;
 	}
 	if(tree->type & 0x0F){
 		int deref = tree->type & 0x0F;
