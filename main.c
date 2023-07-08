@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <math.h>
+#include <io.h>
 
 #include "defs.h"
 #include "types.h"
@@ -83,7 +84,7 @@ int main(int argc, char** argv){
 					free(tree);
 				}
 				putchar('\n');
-				break;
+				continue;
 			}
 			fptr = fopen(output, "w");
 			if(supIntl)
@@ -95,7 +96,7 @@ int main(int argc, char** argv){
 			}
 			putc('\n', fptr);
 			fclose(fptr);
-			break;
+			continue;
 		}
 		ResetVarTable(0);
 		char* Asm = GenerateAsm(ast);
@@ -103,8 +104,11 @@ int main(int argc, char** argv){
 			printf("%s", Asm);
 			break;
 		}
-		if(output == NULL)
+		if(output == NULL){
 			output = AlterFileExtension(inputTargets[i], "s");
+			if(!_access(output, 0))
+				output = inputTargets[i] = AlterFileExtension(inputTargets[i], "tmp_s");
+		}
 		fptr = fopen(output, "w");
 		fprintf(fptr, "%s", Asm);
 		fclose(fptr);
@@ -268,7 +272,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_AddressOf:			name = "AddressOf";			break;
 		case A_Dereference:			name = "Dereference";		break;
 		case A_LitStr:				name = "LitString";			break;
-		case A_StructDecl:				name = "StructDecl";	break;
+		case A_StructDecl:			name = "StructDecl";	break;
 	}
 	const char* type = calloc(1, sizeof(char));
 	switch(tree->type & 0xF0){
