@@ -629,8 +629,10 @@ ASTNode* ParseCompositeDeclaration(){
 		list = list->next;
 	if(!streq(list->item->key, identifier))	FatalM("Failed to find composite definition after creation! (In parse.h)", __LINE__);
 	SymEntry* entry = list->item;
-	ASTNode* varDecl = MakeASTLeaf(A_Declare, P_Composite, GetToken()->value);
+	FlexibleValue declName = GetToken()->value;
+	ASTNode* varDecl = MakeASTLeaf(A_Declare, P_Composite, declName);
 	varDecl->cType = entry;
+	InsertVar(declName.strVal, NULL, P_Composite, entry, scope);
 	if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon after struct declaratioin!", Line);
 	ASTNode* ret = MakeASTList(A_StructDecl, memberNodes, FlexStr(identifier));
 	ret->lhs = varDecl;
