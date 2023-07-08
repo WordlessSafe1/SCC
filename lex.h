@@ -35,6 +35,7 @@ static Token* Tokenize(const char* str){
 			case ',':	token->type = T_Comma;			break;
 			case '[':	token->type = T_OpenBracket;	break;
 			case ']':	token->type = T_CloseBracket;	break;
+			case '.':	token->type = T_Period;			break;
 			default:	found = false;	break;
 		}
 	}
@@ -70,6 +71,7 @@ static Token* Tokenize(const char* str){
 		else if(streq(str, "|="))		token->type = T_PipeEqual;
 		else if(streq(str, "++"))		token->type = T_PlusPlus;
 		else if(streq(str, "--"))		token->type = T_MinusMinus;
+		else if(streq(str, "->"))		token->type = T_Arrow;
 		else if(streq(str, "struct"))	token->type = T_Struct;
 		else if(isdigit(str[0])){
 			token->type = T_LitInt;
@@ -162,10 +164,19 @@ char* ShiftToken(){
 			if(i)	break;
 			else	continue;
 		}
-		if(strchr("(){};-~!+*/%%<>=&^|?:,[]", c)){
+		if(strchr("(){};-~!+*/%%<>=&^|?:.,[]", c)){
 			if(i){
 				fseek(fptr, -1, SEEK_CUR);
 				break;
+			}
+			if(c == '-'){
+				char nextChar = fgetc(fptr);
+				if(nextChar == '>'){
+					token[i++] = c;
+					token[i++] = nextChar;
+					break;
+				}
+				fseek(fptr, -1, SEEK_CUR);
 			}
 			// If double symbol is valid operator
 			if(strchr("=|&<>/+-", c)){

@@ -37,7 +37,7 @@ static SymEntry* MakeStructEntry(const char* name, SymEntry* members){
 	ret->sValue.intVal = 0;
 	while(pos != NULL){
 		pos->value.intVal = ret->sValue.intVal;
-		ret->sValue.intVal += GetTypeSize(pos->type, pos->cType);
+		ret->sValue.intVal += align(GetTypeSize(pos->type, pos->cType), 4);
 		pos = pos->sValue.ptrVal;
 	}
 	ret->type = P_Struct;

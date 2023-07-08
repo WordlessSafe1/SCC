@@ -96,6 +96,8 @@ enum eTokenCategory {
 	T_CloseBracket,
 	T_LitStr,
 	T_Struct,
+	T_Arrow,
+	T_Period,
 };
 
 enum eNodeType {
@@ -306,8 +308,8 @@ int GetPrimSize(PrimordialType prim){
 }
 
 int GetTypeSize(PrimordialType type, SymEntry* compositeType){
-	if(type & 0xF)			return 8; // Pointer
-	switch(type){
+	if(type & 0x0F)			return 8; // Pointer
+	switch(type & 0xF0){
 		case P_Struct:
 			if(compositeType == NULL)	FatalM("Expected composite type! (In types.h)", __LINE__);
 			return compositeType->sValue.intVal;
@@ -380,6 +382,15 @@ DbLnkList* MakeDbLnkList(void* val, DbLnkList* prev, DbLnkList* next){
 	l->val	= val;
 	l->prev	= prev;
 	l->next	= next;
+}
+
+SymEntry* GetMember(SymEntry* structDef, const char* member){
+	SymEntry* members = structDef->value.ptrVal;
+	if(members == NULL)		FatalM("Struct definition contained no members! (Internal @ types.h)", __LINE__);
+	while(!streq(members->key, member) && members->sValue.ptrVal != NULL)
+		members = members->sValue.ptrVal;
+	if(!streq(members->key, member))	FatalM("Invalid member!", Line);
+	return members;
 }
 
 

@@ -152,7 +152,7 @@ static char* GenDereference(ASTNode* node){
 			"	movq	%s,	%%rax\n"	// Offset
 			"	movq	(%%rax),	%%rax\n"
 		;
-		switch(GetPrimSize(node->type)){
+		switch(GetTypeSize(node->type, node->cType)){
 			case 1:
 				format = 
 					"	movq	%s,	%%rax\n"	// Offset
@@ -177,6 +177,22 @@ static char* GenDereference(ASTNode* node){
 			"%s"						// Inner ASM
 			"	movq	(%%rax),	%%rax\n"
 		;
+		switch(GetTypeSize(node->type, node->cType)){
+			case 1:
+				format = 
+					"%s"
+					"	movzbq	(%%rax),	%%rax\n"
+				;
+				break;
+			case 4:
+				format = 
+					"%s"
+					"	movslq	(%%rax),	%%rax\n"
+				;
+				break;
+			case 8:		break;
+			default:	break;
+		}
 		offset = GenExpressionAsm(node->lhs);
 	}
 	const int charCount = strlen(format) + strlen(offset) + 1;
@@ -397,12 +413,20 @@ static const char* GenAssignment(ASTNode* node){
 		"	push	%%rax\n"
 		"%s" // rhs
 		"	pop		%%rcx\n"
-		"	mov		%%rax,	(%%rcx)\n"
+		"%s"
+		// "	mov		%%rax,	(%%rcx)\n"
 	;
+	const char* instr = NULL;
+	switch(GetPrimSize(node->lhs->type)){
+		case 1:		instr = "	movb	%al,	(%rcx)\n";	break;
+		case 4:		instr = "	movl	%eax,	(%rcx)\n";	break;
+		case 8:		instr = "	movq	%rax,	(%rcx)\n";	break;
+		default:	instr = "	movq	%rax,	(%rcx)\n";	break;
+	}
 	const char* innerASM = GenExpressionAsm(node->rhs);
-	const int charCount = strlen(format) + strlen(derefASM) + strlen(innerASM) + 1;
+	const int charCount = strlen(format) + strlen(derefASM) + strlen(innerASM) + strlen(instr) + 1;
 	char* buffer = malloc(charCount * sizeof(char));
-	snprintf(buffer, charCount, format, derefASM, innerASM);
+	snprintf(buffer, charCount, format, derefASM, innerASM, instr);
 	return buffer;
 }
 
@@ -662,7 +686,7 @@ static char* GenDeclaration(ASTNode* node){
 		free(buffer);
 		return calloc(1, sizeof(char));
 	}
-	snprintf(varLoc, 10, "%d(%%rbp)", stackIndex[scope] -= 8);
+	snprintf(varLoc, 10, "%d(%%rbp)", stackIndex[scope] -= GetTypeSize(node->type, node->cType));
 	if(node->lhs != NULL){
 		const char* rhs = GenExpressionAsm(node->lhs);
 		const char* format = "%s	movq	%%rax,	%s\n";

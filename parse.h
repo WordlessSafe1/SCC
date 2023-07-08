@@ -37,11 +37,18 @@ PrimordialType ParseType(){
 	return type;
 }
 
-SymEntry* ParseStructRef(){
+/// @brief Parse a struct reference.
+/// @param type [OUT] Address of type; will be modified to account for pointers.
+/// @return A pointer to the struct definition.
+SymEntry* ParseStructRef(PrimordialType* type){
 	if(GetToken()->type != T_Struct)	FatalM("Aliased structs not yet supported! (Internal @ parse.h)", __LINE__);
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)		FatalM("Expected identifier after 'struct' keyword!", Line);
 	const char* id = tok->value.strVal;
+	while(PeekToken()->type == T_Asterisk) {
+		GetToken();
+		(*type)++;
+	}
 	return FindStruct(id);
 }
 
@@ -79,7 +86,7 @@ ASTNode* ParseFunctionCall(Token* tok){
 ASTNode* ParseVariableReference(Token* outerTok){
 	SymEntry* varInfo = FindVar(outerTok->value.strVal, scope);
 	PrimordialType type = varInfo == NULL ? P_Undefined : varInfo->type;
-	ASTNode* ref = MakeASTLeaf(A_VarRef, type, FlexStr(outerTok->value.strVal));
+	ASTNode* ref = MakeASTNode(A_VarRef, type, NULL, NULL, NULL, FlexStr(outerTok->value.strVal), varInfo->cType);
 	Token* tok = PeekToken();
 	if(tok->type != T_PlusPlus && tok->type != T_MinusMinus)
 		return ref;
@@ -128,6 +135,27 @@ ASTNode* ParseFactor(){
 				ASTNode* add = MakeASTBinary(A_Add, varRef->type - 1, varRef, scale, FlexNULL());
 				ASTNode* deref = MakeASTUnary(A_Dereference, add, FlexNULL());
 				return deref;
+			}
+			if(PeekToken()->type == T_Arrow){
+				ASTNode* varRef = ParseVariableReference(tok);
+				if(GetToken()->type != T_Arrow)	FatalM("Expected arrow '->' in struct pointer member access!", Line);
+				Token* idTok = GetToken();
+				if(idTok->type != T_Identifier)	FatalM("Expected member name!", Line);
+				SymEntry* member = GetMember(varRef->cType, idTok->value.strVal);
+				ASTNode* offset = MakeASTLeaf(A_LitInt, P_Int, FlexInt(member->value.intVal));
+				ASTNode* add = MakeASTBinary(A_Add, member->type, varRef, offset, FlexNULL());
+				return MakeASTUnary(A_Dereference, add, FlexNULL());
+			}
+			if(PeekToken()->type == T_Period){
+				ASTNode* varRef = ParseVariableReference(tok);
+				if(GetToken()->type != T_Period)	FatalM("Expected period '.' in value struct member access!", Line);
+				Token* idTok = GetToken();
+				if(idTok->type != T_Identifier)	FatalM("Expected member name!", Line);
+				SymEntry* member = GetMember(varRef->cType, idTok->value.strVal);
+				ASTNode* offset = MakeASTLeaf(A_LitInt, P_Int, FlexInt(member->value.intVal));
+				ASTNode* address = MakeASTUnary(A_AddressOf, varRef, FlexNULL());
+				ASTNode* add = MakeASTBinary(A_Add, member->type, address, offset, FlexNULL());
+				return MakeASTUnary(A_Dereference, add, FlexNULL());
 			}
 			return ParseVariableReference(tok);
 		case T_PlusPlus:{
@@ -391,7 +419,7 @@ ASTNode* ParseReturnStatement(){
 ASTNode* ParseDeclaration(){
 	PrimordialType type = ParseType();
 	if(type == P_Undefined)			FatalM("Expected typename!", Line);
-	SymEntry* cType = (type == P_Struct) ? ParseStructRef() : NULL;
+	SymEntry* cType = (type == P_Struct) ? ParseStructRef(&type) : NULL;
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)	FatalM("Expected identifier!", Line);
 	const char* id = tok->value.strVal;
@@ -508,7 +536,7 @@ ASTNode* ParseBlock(){
 ASTNode* ParseFunction(){
 	PrimordialType type = ParseType();
 	if(type == P_Undefined)					FatalM("Invalid function declaration; Expected typename.", Line);
-	SymEntry* cType = type == P_Struct ? ParseStructRef() : NULL;
+	SymEntry* cType = type == P_Struct ? ParseStructRef(&type) : NULL;
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)			FatalM("Invalid function declaration; Expected identifier.", Line);
 	int idLen = strlen(tok->value.strVal) + 1;

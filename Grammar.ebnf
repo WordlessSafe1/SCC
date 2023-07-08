@@ -29,6 +29,7 @@
 <factor>				::= <unary_op> <factor> | ( "++" | "--" ) <id> | <id> ( "++" | "--" )
 							| <id> | <int> | <character_literal> | <function_call>
 							| '(' <expression> ')' | <id> '[' <expression> ']' | <string_literal>
+							| <factor> "->" <id> | <factor> '.' <id>
 <function_call>			::= <id> '(' [ <expression> { ',' <expression> } ] ')'
 
 <type>					::= <type> '*' | "void" | "char" | "int" | "long"
