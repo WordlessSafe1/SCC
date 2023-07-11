@@ -40,7 +40,7 @@ bool noWarn = false;
 int main(int argc, char** argv){
 	InitVarTable();
 	if(argc < 2)	FatalM("No input files specified!", NOLINE);
-	const char* outputTarget = "a.out"; 
+	const char* outputTarget = NULL; 
 	const char** inputTargets = calloc(MAXFILES, sizeof(char*));
 	int inputs = 0;
 	int i = 0;
@@ -62,6 +62,7 @@ int main(int argc, char** argv){
 		else							inputTargets[inputs++] = argv[i];
 	}
 	if (inputs == 0)	FatalM("No input files specified!", NOLINE);
+	if(outputTarget == NULL && !dump)	outputTarget = "a.out";
 	for(int i = 0; i < inputs; i++){
 		const char* output = outputTarget;
 		if(!dump && (inputs != 1 || !asASM))
@@ -288,7 +289,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		int tlen = strlen(type);
 		char* buffer = calloc(tlen + deref + 1, sizeof(char));
 		strncpy(buffer, type, tlen);
-		buffer[tlen + deref + 1] = '\0';
+		buffer[tlen + deref] = '\0';
 		for(int i = deref + tlen - 1; i >= tlen; i--)
 			buffer[i] = '*';
 		type = buffer;
