@@ -112,39 +112,16 @@ ASTNode* ParseVariableReference(Token* outerTok){
 	Token* tok = PeekToken();
 	if(tok->type != T_PlusPlus && tok->type != T_MinusMinus)
 		return ref;
+	if(varInfo->type == P_Composite)	FatalM("Composite increments / decrements not supported!", Line);
 	tok = GetToken();
 	if(tok->type == T_PlusPlus)
-		return MakeASTUnary(A_Increment, ref, FlexInt(0));
-	return MakeASTUnary(A_Decrement, ref, FlexInt(0));
+		return MakeASTUnary(A_Increment, ref, FlexInt(0), NULL);
+	return MakeASTUnary(A_Decrement, ref, FlexInt(0), NULL);
 }
 
-ASTNode* ParseFactor(){
+ASTNode* ParseBase(){
 	Token* tok = GetToken();
 	switch(tok->type){
-		case T_LitInt:{
-			PrimordialType type = tok->value.intVal >= 0 && tok->value.intVal < 256 ? P_Char : P_Int;
-			return MakeASTLeaf(A_LitInt, type, FlexInt(tok->value.intVal));
-		}
-		case T_LitStr:		return MakeASTLeaf(A_LitStr, P_Char + 1, tok->value);
-		case T_Minus:		return MakeASTUnary(A_Negate,				ParseFactor(),	FlexNULL());
-		case T_Bang:		return MakeASTUnary(A_LogicalNot,			ParseFactor(),	FlexNULL());
-		case T_Tilde:		return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	FlexNULL());
-		case T_Semicolon:	ungetc(';', fptr); return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
-		case T_Ampersand:{
-			ASTNode* fctr = ParseFactor();
-			if(fctr->op != A_VarRef)	FatalM("The Address operator may only be used on variable references!", Line);
-			PrimordialType t = fctr->type;
-			if(t == P_Undefined)		FatalM("Expression type not determined!", Line);
-			if((t & 0xF) == 0xF)		FatalM("Indirection limit exceeded!", Line);
-			return MakeASTNode(A_AddressOf,		fctr->type + 1,	fctr,	NULL,	NULL,	FlexNULL(), fctr->cType);
-		}
-		case T_Asterisk:{
-			ASTNode* fctr = ParseFactor();
-			PrimordialType t = fctr->type;
-			if(t == P_Undefined)		FatalM("Expression type not determined!", Line);
-			if(!(t & 0xF))				FatalM("Can't dereference a non-pointer!", Line);
-			return MakeASTNode(A_Dereference,	fctr->type - 1,	fctr,	NULL,	NULL,	FlexNULL(), fctr->cType);
-		}
 		case T_Identifier:
 			if(PeekToken()->type == T_OpenParen)
 				return ParseFunctionCall(tok);
@@ -155,18 +132,27 @@ ASTNode* ParseFactor(){
 				if(GetToken()->type != T_CloseBracket)	FatalM("Expected close bracket in array access!", Line);
 				ASTNode* scale = MakeASTBinary(A_Multiply, expr->type, expr, MakeASTLeaf(A_LitInt, P_Int, FlexInt(GetPrimSize(varRef->type - 1))), FlexNULL());
 				ASTNode* add = MakeASTBinary(A_Add, varRef->type - 1, varRef, scale, FlexNULL());
-				ASTNode* deref = MakeASTUnary(A_Dereference, add, FlexNULL());
+				ASTNode* deref = MakeASTUnary(A_Dereference, add, FlexNULL(), varRef->cType);
 				return deref;
 			}
-			if(PeekToken()->type == T_Arrow){
-				ASTNode* varRef = ParseVariableReference(tok);
-				if(GetToken()->type != T_Arrow)	FatalM("Expected arrow '->' in struct pointer member access!", Line);
-				Token* idTok = GetToken();
-				if(idTok->type != T_Identifier)	FatalM("Expected member name!", Line);
-				SymEntry* member = GetMember(varRef->cType, idTok->value.strVal);
-				ASTNode* offset = MakeASTLeaf(A_LitInt, P_Int, FlexInt(member->value.intVal));
-				ASTNode* add = MakeASTBinary(A_Add, member->type, varRef, offset, FlexNULL());
-				return MakeASTUnary(A_Dereference, add, FlexNULL());
+			if(PeekToken()->type == T_Arrow || PeekToken()->type == T_Period){
+				ASTNode* node = ParseVariableReference(tok);
+				while(PeekToken()->type == T_Arrow || PeekToken()->type == T_Period){
+					Token* accessor = GetToken();
+					Token* idTok = GetToken();
+					if(idTok->type != T_Identifier)	FatalM("Expected member name!", Line);
+					SymEntry* member = GetMember(node->cType, idTok->value.strVal);
+					ASTNode* offset = MakeASTLeaf(A_LitInt, P_Int, FlexInt(member->value.intVal));
+					if(accessor->type == T_Arrow){
+						ASTNode* add = MakeASTBinary(A_Add, member->type, node, offset, FlexNULL());
+						node = MakeASTUnary(A_Dereference, add, FlexNULL(), member->cType);
+						continue;
+					}
+					ASTNode* address = MakeASTUnary(A_AddressOf, node, FlexNULL(), NULL);
+					ASTNode* add = MakeASTBinary(A_Add, member->type, address, offset, FlexNULL());
+					node = MakeASTUnary(A_Dereference, add, FlexNULL(), member->cType);
+				}
+				return node;
 			}
 			if(PeekToken()->type == T_Period){
 				ASTNode* varRef = ParseVariableReference(tok);
@@ -175,27 +161,64 @@ ASTNode* ParseFactor(){
 				if(idTok->type != T_Identifier)	FatalM("Expected member name!", Line);
 				SymEntry* member = GetMember(varRef->cType, idTok->value.strVal);
 				ASTNode* offset = MakeASTLeaf(A_LitInt, P_Int, FlexInt(member->value.intVal));
-				ASTNode* address = MakeASTUnary(A_AddressOf, varRef, FlexNULL());
+				ASTNode* address = MakeASTUnary(A_AddressOf, varRef, FlexNULL(), NULL);
 				ASTNode* add = MakeASTBinary(A_Add, member->type, address, offset, FlexNULL());
-				return MakeASTUnary(A_Dereference, add, FlexNULL());
+				return MakeASTUnary(A_Dereference, add, FlexNULL(), member->cType);
 			}
 			return ParseVariableReference(tok);
-		case T_PlusPlus:{
-			ASTNode* ref = ParseFactor();
-			if(ref->op != A_VarRef)		FatalM("The increment prefix operator '++' may only be used before a variable name!", Line);
-			return MakeASTUnary(A_Increment, ref, FlexInt(1));
-		}
-		case T_MinusMinus:{
-			ASTNode* ref = ParseFactor();
-			if(ref->op != A_VarRef)		FatalM("The decrement prefix operator '--' may only be used before a variable name!", Line);
-			return MakeASTUnary(A_Decrement, ref, FlexInt(1));
-		}
 		case T_OpenParen:{
 			ASTNode* expr = ParseExpression();
 			if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis!", Line);
 			return expr;
 		}
-		default:			FatalM("Invalid expression!", Line);
+		case T_LitInt:{
+			PrimordialType type = tok->value.intVal >= 0 && tok->value.intVal < 256 ? P_Char : P_Int;
+			return MakeASTLeaf(A_LitInt, type, FlexInt(tok->value.intVal));
+		}
+		case T_LitStr:		return MakeASTLeaf(A_LitStr, P_Char + 1, tok->value);
+		default:	FatalM("Invalid Expression!", Line);
+	}
+}
+
+ASTNode* ParseFactor(){
+	Token* tok = PeekToken();
+	switch(tok->type){
+		case T_Minus:		GetToken(); return MakeASTUnary(A_Negate,				ParseFactor(),	FlexNULL(), NULL);
+		case T_Bang:		GetToken(); return MakeASTUnary(A_LogicalNot,			ParseFactor(),	FlexNULL(), NULL);
+		case T_Tilde:		GetToken(); return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	FlexNULL(), NULL);
+		case T_Semicolon:	return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
+		case T_PlusPlus:{
+			GetToken();
+			ASTNode* ref = ParseBase();
+			if(ref->op != A_VarRef)			FatalM("The increment prefix operator '++' may only be used before a variable name!", Line);
+			if(ref->type == P_Composite)	FatalM("Composite increments not supported!", Line);
+			return MakeASTUnary(A_Increment, ref, FlexInt(1), NULL);
+		}
+		case T_MinusMinus:{
+			GetToken();
+			ASTNode* ref = ParseBase();
+			if(ref->op != A_VarRef)			FatalM("The decrement prefix operator '--' may only be used before a variable name!", Line);
+			if(ref->type == P_Composite)	FatalM("Composite decrements not supported!", Line);
+			return MakeASTUnary(A_Decrement, ref, FlexInt(1), NULL);
+		}
+		case T_Ampersand:{
+			GetToken();
+			ASTNode* fctr = ParseFactor();
+			if(!fctr->lvalue)		FatalM("The Address operator may only be used on variable references!", Line);
+			PrimordialType t = fctr->type;
+			if(t == P_Undefined)	FatalM("Expression type not determined!", Line);
+			if((t & 0xF) == 0xF)	FatalM("Indirection limit exceeded!", Line);
+			return MakeASTNode(A_AddressOf,		fctr->type + 1,	fctr,	NULL,	NULL,	FlexNULL(), fctr->cType);
+		}
+		case T_Asterisk:{
+			GetToken();
+			ASTNode* fctr = ParseFactor();
+			PrimordialType t = fctr->type;
+			if(t == P_Undefined)		FatalM("Expression type not determined!", Line);
+			if(!(t & 0xF))				FatalM("Can't dereference a non-pointer!", Line);
+			return MakeASTNode(A_Dereference,	fctr->type - 1,	fctr,	NULL,	NULL,	FlexNULL(), fctr->cType);
+		}
+		default:	return ParseBase();
 	}
 }
 
@@ -395,8 +418,8 @@ ASTNode* ParseConditionalExpression(){
 
 ASTNode* ParseAssignmentExpression(){
 	ASTNode* lhs = ParseConditionalExpression();
-	if(lhs == NULL)												FatalM("Got NULL instead of expression! (In parse.h)", __LINE__);
-	if(lhs->op != A_VarRef && lhs->op != A_Dereference)			return lhs;
+	if(lhs == NULL)					FatalM("Got NULL instead of expression! (In parse.h)", __LINE__);
+	if(!lhs->lvalue)				return lhs;
 	NodeType nt = A_Undefined;
 	switch(PeekToken()->type){
 		case T_Equal:				nt = A_Assign;				break;
@@ -435,13 +458,13 @@ ASTNode* ParseReturnStatement(){
 	if(GetToken()->type != T_Return)		FatalM("Invalid statement; Expected return.", Line);
 	ASTNode* expr = ParseExpression();
 	if(GetToken()->type != T_Semicolon)		FatalM("Invalid statement; Expected semicolon.", Line);
-	return MakeASTUnary(A_Return, expr, FlexNULL());
+	return MakeASTUnary(A_Return, expr, FlexNULL(), expr->cType);
 }
 
 ASTNode* ParseDeclaration(){
 	PrimordialType type = ParseType();
 	if(type == P_Undefined)			FatalM("Expected typename!", Line);
-	SymEntry* cType = (type == P_Composite) ? ParseCompRef(&type) : NULL;
+	SymEntry* cType = ((type & 0xF0) == P_Composite) ? ParseCompRef(&type) : NULL;
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)	FatalM("Expected identifier!", Line);
 	const char* id = tok->value.strVal;
@@ -601,9 +624,16 @@ ASTNode* ParseCompositeDeclaration(){
 	Token* cTok = GetToken();
 	if(cTok->type != T_Struct && cTok->type != T_Union)
 		FatalM("Expected composite type!", Line);
-	Token* tok = GetToken();
-	if(tok->type != T_Identifier)			FatalM("Anonymous composites not yet implemented!", Line);
-	const char* identifier = tok->value.strVal;
+	Token* tok = PeekToken();
+	// if(tok->type != T_Identifier)			FatalM("Anonymous composites not yet implemented!", Line);
+	const char* identifier = NULL;
+	if(tok->type == T_Identifier){
+		identifier = tok->value.strVal;
+		GetToken();
+	}
+	SymList* incomplete = cTok->type == T_Struct
+		? InsertStruct(identifier,	NULL)
+		: InsertUnion(identifier,	NULL);
 	if(PeekToken()->type == T_Semicolon){
 		// incomplete type
 		FatalM("Incomplete composite declarations not yet supported!", Line);
@@ -618,16 +648,18 @@ ASTNode* ParseCompositeDeclaration(){
 	}
 	if(GetToken()->type != T_CloseBrace)	FatalM("Expected close brace '}' in composite declaration!", Line);
 	SymList* list = cTok->type == T_Struct
-		? InsertStruct(identifier, MakeCompMembers(memberNodes))
-		: InsertUnion(identifier, MakeCompMembers(memberNodes));
+		? UpdateStruct(incomplete,	identifier,	MakeCompMembers(memberNodes))
+		: UpdateUnion(incomplete,	identifier,	MakeCompMembers(memberNodes));
 	if(list == NULL)						FatalM("Failed to create composite definition! (In parse.h)", __LINE__);
 	if(PeekToken()->type != T_Identifier){
 		if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon after composite declaration!", Line);
 		return MakeASTList(A_StructDecl, memberNodes, FlexStr(identifier));
 	}
-	while(!streq(list->item->key, identifier) && list->next != NULL)
-		list = list->next;
-	if(!streq(list->item->key, identifier))	FatalM("Failed to find composite definition after creation! (In parse.h)", __LINE__);
+	if(identifier != NULL){
+		while(!streq(list->item->key, identifier) && list->next != NULL)
+			list = list->next;
+		if(!streq(list->item->key, identifier))	FatalM("Failed to find composite definition after creation! (In parse.h)", __LINE__);
+	}
 	SymEntry* entry = list->item;
 	FlexibleValue declName = GetToken()->value;
 	ASTNode* varDecl = MakeASTLeaf(A_Declare, P_Composite, declName);

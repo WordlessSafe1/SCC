@@ -189,14 +189,14 @@ SymList* InsertVar(const char* key, const char* value, PrimordialType type, SymE
 	SymList* list = hashArray[scope][hash];
 	if(list == NULL){
 		varCount[scope]++;
-		stackSize[scope] += GetTypeSize(type, cType);
+		stackSize[scope] += align(GetTypeSize(type, cType), 16);
 		return hashArray[scope][hash] = MakeSymList(MakeVarEntry(key, value, type, cType), NULL);
 	}
 	while((!streq(list->item->key, key) || list->item->sType != S_Variable)&& list->next != NULL)
 		list = list->next;
 	if(!streq(list->item->key, key)){
 		varCount[scope]++;
-		stackSize[scope] += GetTypeSize(type, cType);
+		stackSize[scope] += align(GetTypeSize(type, cType), 16);
 		return list->next = MakeSymList(MakeVarEntry(key, value, type, cType), NULL);
 	}
 	list->item->value = FlexStr(value);
@@ -218,6 +218,8 @@ SymList* InsertFunc(const char* key, FlexibleValue params, PrimordialType type, 
 }
 
 SymList* InsertStruct(const char* name, SymEntry* members){
+	if(name == NULL)
+		return MakeSymList(MakeStructEntry(NULL, members), NULL);
 	int hash = hash_oaat(name, strlen(name)) % CAPACITY;
 	if(hashArray[0] == NULL)
 		return NULL;
@@ -233,6 +235,8 @@ SymList* InsertStruct(const char* name, SymEntry* members){
 }
 
 SymList* InsertUnion(const char* name, SymEntry* members){
+	if(name == NULL)
+		return MakeSymList(MakeUnionEntry(NULL, members), NULL);
 	int hash = hash_oaat(name, strlen(name)) % CAPACITY;
 	if(hashArray[0] == NULL)
 		return NULL;
@@ -244,6 +248,34 @@ SymList* InsertUnion(const char* name, SymEntry* members){
 	if(!streq(list->item->key, name))
 		return list->next = MakeSymList(MakeUnionEntry(name, members), NULL);
 	list->item = MakeUnionEntry(name, members);
+	return list;
+}
+
+SymList* UpdateStruct(SymList* list, const char* name, SymEntry* members){
+	if(name != NULL){
+		while((!streq(list->item->key, name) || list->item->sType != S_Composite) && list->next != NULL)
+			list = list->next;
+		if(!streq(list->item->key, name))
+			FatalM("Failed to find struct definition! (Internal @ symTable.h)", __LINE__);
+	}
+	SymEntry* proto = MakeStructEntry(name, members);
+	list->item->value	= proto->value;
+	list->item->sValue	= proto->sValue;
+	free(proto);
+	return list;
+}
+
+SymList* UpdateUnion(SymList* list, const char* name, SymEntry* members){
+	if(name != NULL){
+		while((!streq(list->item->key, name) || list->item->sType != S_Composite) && list->next != NULL)
+			list = list->next;
+		if(!streq(list->item->key, name))
+			FatalM("Failed to find union definition! (Internal @ symTable.h)", __LINE__);
+	}
+	SymEntry* proto = MakeUnionEntry(name, members);
+	list->item->value	= proto->value;
+	list->item->sValue	= proto->sValue;
+	free(proto);
 	return list;
 }
 

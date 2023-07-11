@@ -192,6 +192,7 @@ struct ast_node {
 	FlexibleValue value;
 	FlexibleValue secondaryValue;
 	SymEntry* cType;
+	bool lvalue;
 };
 
 struct ast_node_list {
@@ -253,6 +254,11 @@ ASTNode* MakeASTNodeEx(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, 
 	node->secondaryValue = secondValue;
 	node->list = NULL;
 	node->cType = cType;
+	switch(op){
+		case A_VarRef:
+		case A_Dereference:		node->lvalue = true;	break;
+		default:				node->lvalue = false;	break;
+	}
 	return node;
 }
 
@@ -268,8 +274,8 @@ ASTNode* MakeASTLeaf(int op, PrimordialType type, FlexibleValue value){
 	return MakeASTNode(op, type, NULL, NULL, NULL, value, NULL);
 }
 
-ASTNode* MakeASTUnary(int op, ASTNode* lhs, FlexibleValue value){
-	return MakeASTBinary(op, lhs->type, lhs, NULL, value);
+ASTNode* MakeASTUnary(int op, ASTNode* lhs, FlexibleValue value, SymEntry* cType){
+	return MakeASTNode(op, lhs->type, lhs, NULL, NULL, value, cType);
 }
 
 ASTNode* MakeASTList(int op, ASTNodeList* list, FlexibleValue value){

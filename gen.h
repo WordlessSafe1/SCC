@@ -118,7 +118,7 @@ static const char* GenVarRef(ASTNode* node){
 	const char* format = NULL;
 	// if(strchr(var->key, 'i') != NULL){
 		// // Var is global
-	switch(GetPrimSize(var->type)){
+	switch(GetTypeSize(var->type, var->cType)){
 		case 1:		format = "	movzbq	%s,	%%rax\n";	break;
 		case 4:		format = "	movslq	%s,	%%rax\n";	break;
 		case 8:		format = "	movq	%s,	%%rax\n";	break;
@@ -134,7 +134,11 @@ static const char* GenVarRef(ASTNode* node){
 }
 
 static char* GenAddressOf(ASTNode* node){
-	if(node->lhs->op != A_VarRef)	FatalM("Using AddressOf against non-varref", __LINE__);
+	if(node->lhs->op != A_VarRef){
+		if(node->lhs->op == A_Dereference)
+			return _strdup(GenExpressionAsm(node->lhs->lhs));
+		FatalM("Unsupported lvalue! (Internal @ gen.h)", __LINE__);
+	}
 	const char* format = "	leaq	%s,	%%rax\n";
 	SymEntry* varInfo = FindVar(node->lhs->value.strVal, scope);
 	const char* offset = varInfo->value.strVal;
@@ -399,7 +403,7 @@ static const char* GenAssignment(ASTNode* node){
 			case 1:		format = "%s	movb	%%al,	%s\n";	break;
 			case 4:		format = "%s	movl	%%eax,	%s\n";	break;
 			case 8:		format = "%s	movq	%%rax,	%s\n";	break;
-			default:	format = "%s	movq	%%rax,	%s\n";	break;
+			default:	FatalM("Non-standard sizes not yet supported in assignments! (Internal @ gen.h)", __LINE__);
 		}
 		int charCount = strlen(format) + strlen(rhs) + strlen(offset);
 		char* str = malloc(charCount * sizeof(char));
@@ -417,11 +421,11 @@ static const char* GenAssignment(ASTNode* node){
 		// "	mov		%%rax,	(%%rcx)\n"
 	;
 	const char* instr = NULL;
-	switch(GetPrimSize(node->lhs->type)){
+	switch(GetTypeSize(node->lhs->type, node->lhs->cType)){
 		case 1:		instr = "	movb	%al,	(%rcx)\n";	break;
 		case 4:		instr = "	movl	%eax,	(%rcx)\n";	break;
 		case 8:		instr = "	movq	%rax,	(%rcx)\n";	break;
-		default:	instr = "	movq	%rax,	(%rcx)\n";	break;
+		default:	FatalM("Non-standard sizes not yet supported in assignments! (Internal @ gen.h)", __LINE__);
 	}
 	const char* innerASM = GenExpressionAsm(node->rhs);
 	const int charCount = strlen(format) + strlen(derefASM) + strlen(innerASM) + strlen(instr) + 1;
