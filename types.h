@@ -329,8 +329,9 @@ bool IsPointer(PrimordialType prim){
 }
 
 int CheckTypeCompatibility(PrimordialType lhs, PrimordialType rhs){
-	if(lhs == P_Void	|| rhs == P_Void)	return TYPES_INCOMPATIBLE;
-	if(lhs == rhs)							return TYPES_COMPATIBLE;
+	if(lhs == P_Void	|| rhs == P_Void)			return TYPES_INCOMPATIBLE;
+	if(lhs == rhs)									return TYPES_COMPATIBLE;
+	if (lhs == P_Composite || rhs == P_Composite)	return TYPES_INCOMPATIBLE;
 	char lptr = lhs & 0x0F; // The level of indirection of lhs
 	char rptr = rhs & 0x0F; // The level of indirection of rhs
 	int lbase = lhs & 0xF0; // The base type of lhs
