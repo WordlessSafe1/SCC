@@ -298,6 +298,20 @@ static const char* GenRTLBinary(ASTNode* node){
 				"	setg	%al\n"
 			;
 			break;
+		case A_LessOrEqual:
+			instr =
+				"	cmp		%rcx,	%rax\n"
+				"	movq	$0,		%rax\n"
+				"	setle	%al\n"
+			;
+			break;
+		case A_GreaterOrEqual:
+			instr =
+				"	cmp		%rcx,	%rax\n"
+				"	movq	$0,		%rax\n"
+				"	setge	%al\n"
+			;
+			break;
 	}
 	const char* lhs = GenExpressionAsm(node->lhs);
 	const char* rhs = GenExpressionAsm(node->rhs);
@@ -576,6 +590,8 @@ static const char* GenExpressionAsm(ASTNode* node){
 		case A_Subtract:
 		case A_LeftShift:
 		case A_RightShift:
+		case A_LessOrEqual:
+		case A_GreaterOrEqual:
 		case A_LessThan:
 		case A_GreaterThan:			return GenRTLBinary(node);
 		// Short-Circuiting Operators
