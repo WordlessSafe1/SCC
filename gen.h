@@ -728,7 +728,7 @@ static const char* GenWhileLoop(ASTNode* node){
 		;
 		int charCount = strlen(condition) + strlen(action) + strlen(format) + (3 * intlen(labelPref)) + 1;
 		buffer = malloc(charCount * sizeof(char));
-		snprintf(buffer, charCount, format, labelPref, action, condition, labelPref);
+		snprintf(buffer, charCount, format, labelPref, action, condition, labelPref, labelPref);
 		return buffer;
 	}
 	const char* format = 
