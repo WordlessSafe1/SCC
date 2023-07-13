@@ -71,14 +71,16 @@ SymEntry* ParseCompRef(PrimordialType* type){
 		GetToken();
 		(*type)++;
 	}
-	return FindStruct(id);
+	SymEntry* cType = FindStruct(id);
+	if(cType == NULL)	FatalM("Undefined composite!", Line);
+	return cType;
 }
 
 ASTNode* ParseFunctionCall(Token* tok){
 	GetToken();
 	SymEntry* func = FindFunc(tok->value.strVal);
 	if (func == NULL)
-		FatalM("Implicit function declarations not yet supported! (In parse.h)", Line);
+		FatalM("Implicit function declarations not yet supported!", Line);
 	Parameter* paramPrototype = (Parameter*)func->value.ptrVal;
 	ASTNodeList* params = MakeASTNodeList();
 	while(PeekToken()->type != T_CloseParen){
@@ -107,6 +109,7 @@ ASTNode* ParseFunctionCall(Token* tok){
 
 ASTNode* ParseVariableReference(Token* outerTok){
 	SymEntry* varInfo = FindVar(outerTok->value.strVal, scope);
+	if (varInfo == NULL)					FatalM("Undefined variable!", Line);
 	PrimordialType type = varInfo == NULL ? P_Undefined : varInfo->type;
 	ASTNode* ref = MakeASTNode(A_VarRef, type, NULL, NULL, NULL, FlexStr(outerTok->value.strVal), varInfo->cType);
 	Token* tok = PeekToken();
@@ -137,6 +140,7 @@ ASTNode* ParseBase(){
 			}
 			if(PeekToken()->type == T_Arrow || PeekToken()->type == T_Period){
 				ASTNode* node = ParseVariableReference(tok);
+				if(node->cType == NULL)	FatalM("Can only access members of a composite!", Line);
 				while(PeekToken()->type == T_Arrow || PeekToken()->type == T_Period){
 					Token* accessor = GetToken();
 					Token* idTok = GetToken();
@@ -156,6 +160,7 @@ ASTNode* ParseBase(){
 			}
 			if(PeekToken()->type == T_Period){
 				ASTNode* varRef = ParseVariableReference(tok);
+				if(varRef->cType == NULL)	FatalM("Can only access members of a composite!", Line);
 				if(GetToken()->type != T_Period)	FatalM("Expected period '.' in value struct member access!", Line);
 				Token* idTok = GetToken();
 				if(idTok->type != T_Identifier)	FatalM("Expected member name!", Line);
