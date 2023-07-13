@@ -482,8 +482,8 @@ ASTNode* ParseDeclaration(){
 		if(expr->op != A_LitInt)	FatalM("Non-constant expression in global varibale declaration!", Line);
 		int typeSize = GetTypeSize(type, cType);
 		// If expression result is too large to fit in variable, truncate it
-		if(expr->value.intVal >= (1 << (8 * typeSize)))
-			expr->value.intVal &= (1 << (8 * typeSize)) - 1;
+		if(expr->value.intVal >= ((unsigned long long)1 << (8 * typeSize)))
+			expr->value.intVal &= ((unsigned long long)1 << (8 * typeSize)) - 1;
 		return MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(expr->value.intVal), cType);
 	}
 	return MakeASTNode(A_Declare, type, expr, NULL, NULL, FlexStr(id), cType);
