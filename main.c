@@ -37,9 +37,22 @@ char* DumpASTTree(ASTNode* tree, int depth);
 char* charStr(char c, int count);
 bool noWarn = false;
 
+void Usage(char* file){
+	const char* format =
+		"Usage: %s [-pqSt] [-o outFile] file [file ...]\n"
+		"	-q Disable warnings\n"
+		"	-p Print the output to the console\n"
+		"	-S Generate assembly files, but don't assemble or link them\n"
+		"	-t Dump the Abstract Syntax Trees for each file\n"
+		"	-o outfile, produce the outfile executable file\n"
+	;
+	printf(format, file);
+	exit(0);
+}
+
 int main(int argc, char** argv){
 	InitVarTable();
-	if(argc < 2)	FatalM("No input files specified!", NOLINE);
+	if(argc < 2)	Usage(argv[0]);
 	const char* outputTarget = NULL; 
 	const char** inputTargets = calloc(MAXFILES, sizeof(char*));
 	int inputs = 0;
@@ -49,15 +62,26 @@ int main(int argc, char** argv){
 	bool supIntl	= false;
 	bool asASM		= false;
 	for(int i = 1; i < argc; i++){
-		if(streq(argv[i], "-o")){
-			if(i+1 >= argc)	FatalM("Trailing argument '-o'!", NOLINE);
-			else			outputTarget = argv[++i];
+		if(argv[i][0] == '-'){
+			if(strlen(argv[i]) == 2){
+				switch(argv[i][1]){
+					case 'o':
+						if(i+1 >= argc)	FatalM("Trailing argument '-o'!", NOLINE);
+						else			outputTarget = argv[++i];
+						break;
+					case 't':	dump	= true;	break;
+					case 'p':	print	= true;	break;
+					case 'q':	noWarn	= true;	break;
+					case 'S':	asASM	= true;	break;
+					case 'h':
+					case 'H':
+					case '?':	Usage(argv[0]);
+					default:	FatalM("Unknown flag(s) supplied!", NOLINE);
+				}
+			}
+			else if(streq(argv[i], "-sI"))	supIntl		= true;
+			else							FatalM("Unknown flag(s) supplied!", NOLINE);
 		}
-		else if(streq(argv[i], "-t"))	dump		= true;
-		else if(streq(argv[i], "-p"))	print		= true;
-		else if(streq(argv[i], "-sI"))	supIntl		= true;
-		else if(streq(argv[i], "-q"))	noWarn		= true;
-		else if(streq(argv[i], "-S"))	asASM		= true;
 		else if(inputs == MAXFILES - 2)	FatalM("Too many object files!", NOLINE);
 		else							inputTargets[inputs++] = argv[i];
 	}
