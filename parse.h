@@ -27,6 +27,7 @@ PrimordialType ParseType(){
 		case T_Long:	type = P_Long;		break;
 		case T_Union:
 		case T_Struct:	return P_Composite;	// Structs must be parsed with ParseCompRef()
+		case T_Enum:	type = P_Int;	GetToken();	break;
 		default:		return P_Undefined;
 	}
 	GetToken();
@@ -40,16 +41,17 @@ PrimordialType ParseType(){
 
 PrimordialType PeekType(){
 	PrimordialType type;
+	int i = 1;
 	switch(PeekToken()->type){
 		case T_Int:		type = P_Int;		break;
 		case T_Char:	type = P_Char;		break;
 		case T_Void:	type = P_Void;		break;
 		case T_Long:	type = P_Long;		break;
+		case T_Enum:	type = P_Int; i++;	break;
 		case T_Union:
 		case T_Struct:	return P_Composite;	// Structs must be parsed with ParseCompRef()
 		default:		return P_Undefined;
 	}
-	int i = 1;
 	while(PeekTokenN(i++)->type == T_Asterisk){
 		if((type & 0xF) == 0xF)	FatalM("Indirection limit exceeded!", Line);
 		type++;
@@ -109,7 +111,7 @@ ASTNode* ParseFunctionCall(Token* tok){
 
 ASTNode* ParseVariableReference(Token* outerTok){
 	SymEntry* varInfo = FindVar(outerTok->value.strVal, scope);
-	if (varInfo == NULL)					FatalM("Undefined variable!", Line);
+	if (varInfo == NULL)				return NULL;
 	PrimordialType type = varInfo == NULL ? P_Undefined : varInfo->type;
 	ASTNode* ref = MakeASTNode(A_VarRef, type, NULL, NULL, NULL, FlexStr(outerTok->value.strVal), varInfo->cType);
 	Token* tok = PeekToken();
@@ -130,6 +132,7 @@ ASTNode* ParseBase(){
 				return ParseFunctionCall(tok);
 			if(PeekToken()->type == T_OpenBracket){
 				ASTNode* varRef = ParseVariableReference(tok);
+				if (varRef == NULL)	FatalM("Undefined variable!", Line);
 				if(GetToken()->type != T_OpenBracket)	FatalM("Expected open bracket in array access!", Line);
 				ASTNode* expr = ParseExpression();
 				if(GetToken()->type != T_CloseBracket)	FatalM("Expected close bracket in array access!", Line);
@@ -140,6 +143,7 @@ ASTNode* ParseBase(){
 			}
 			if(PeekToken()->type == T_Arrow || PeekToken()->type == T_Period){
 				ASTNode* node = ParseVariableReference(tok);
+				if (node == NULL)	FatalM("Undefined struct member!", Line);
 				if(node->cType == NULL)	FatalM("Can only access members of a composite!", Line);
 				while(PeekToken()->type == T_Arrow || PeekToken()->type == T_Period){
 					Token* accessor = GetToken();
@@ -170,7 +174,14 @@ ASTNode* ParseBase(){
 				ASTNode* add = MakeASTBinary(A_Add, member->type, address, offset, FlexNULL());
 				return MakeASTUnary(A_Dereference, add, FlexNULL(), member->cType);
 			}
-			return ParseVariableReference(tok);
+			ASTNode* varRef = ParseVariableReference(tok);
+			if(varRef != NULL)
+				return varRef;
+			SymEntry* enumVal = FindEnumValue(tok->value.strVal);
+			if(enumVal != NULL)
+				return MakeASTLeaf(A_LitInt, enumVal->value.intVal <= 255 ? P_Char : P_Int, enumVal->value);
+			FatalM("Unknown identifier!", Line);
+			break;
 		case T_OpenParen:{
 			ASTNode* expr = ParseExpression();
 			if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis!", Line);
@@ -622,11 +633,50 @@ ASTNode* ParseFunction(){
 	ASTNode* block = ParseBlock();
 	ExitScope();
 	return MakeASTNodeEx(A_Function, type, block, NULL, NULL, FlexStr(idStr), FlexPtr(params), cType);
-	// return MakeASTUnary(A_Function, stmt, 0, identifier->value.strVal);
+}
+
+ASTNode* ParseEnumDeclaration(){
+	const char* identifier = NULL;
+	if(PeekToken()->type == T_Identifier){
+		identifier = GetToken()->value.strVal;
+		InsertEnumName(identifier);
+	}
+	if(PeekToken()->type == T_Semicolon){
+		// incomplete type -- Never hit due to lookahead behaviour in ParseNode()
+		FatalM("Incomplete enum declarations not yet supported!", Line);
+	}
+	if(GetToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' in enum declaration!", Line);
+	ASTNodeList* values = MakeASTNodeList();
+	int lastValue = -1;
+	while(PeekToken()->type == T_Identifier){
+		PrimordialType type = P_Undefined;
+		int value = lastValue + 1;
+		const char* id = GetToken()->value.strVal;
+		if(PeekToken()->type == T_Equal){
+			GetToken();
+			ASTNode* expr = ParseExpression();
+			// TODO: Fold constant expressions
+			if(expr->op != A_LitInt)	FatalM("Only integer and character literals are supported at this time! (Internal @ parse.h)", __LINE__);
+			value = expr->value.intVal;
+		}
+		if(NULL == InsertEnumValue(id, value))
+			FatalM("Failed to create enum value!", Line);
+		AddNodeToASTList(values, MakeASTNodeEx(A_EnumValue, type, NULL, NULL, NULL, FlexStr(id), FlexInt(value), NULL));
+		lastValue = value;
+		if(PeekToken()->type == T_Comma)
+			GetToken();
+	}
+	if (GetToken()->type != T_CloseBrace)
+		FatalM("Expected close brace after Enum declaration!", Line);
+	if(GetToken()->type != T_Semicolon)
+		FatalM("Expected semicolon after Enum declaration!", Line);
+	// Add enum values to symtable
+	return MakeASTList(A_EnumDecl, values, FlexStr(identifier));
 }
 
 ASTNode* ParseCompositeDeclaration(){
 	Token* cTok = GetToken();
+	if(cTok->type == T_Enum)	return ParseEnumDeclaration();
 	if(cTok->type != T_Struct && cTok->type != T_Union)
 		FatalM("Expected composite type!", Line);
 	Token* tok = PeekToken();
@@ -640,7 +690,7 @@ ASTNode* ParseCompositeDeclaration(){
 		? InsertStruct(identifier,	NULL)
 		: InsertUnion(identifier,	NULL);
 	if(PeekToken()->type == T_Semicolon){
-		// incomplete type
+		// incomplete type -- Never hit due to lookahead behaviour in ParseNode()
 		FatalM("Incomplete composite declarations not yet supported!", Line);
 	}
 	if(GetToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' in composite declaration!", Line);

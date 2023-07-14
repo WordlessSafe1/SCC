@@ -102,7 +102,7 @@ int main(int argc, char** argv){
 		if(dump){
 			if(output == NULL || print){
 				if(supIntl)
-					printf("%s", "#ifdef __INTELLISENSE__\n" "	#pragma diag_suppress 29\n" "	#pragma diag_suppress 169\n" "	#pragma diag_suppress 130\n" "#endif");
+					printf("%s", "#ifdef __INTELLISENSE__\n" "	#pragma diag_suppress 29\n" "	#pragma diag_suppress 169\n" "	#pragma diag_suppress 130\n" "	#pragma diag_suppress 109\n" "	#pragma diag_suppress 20\n" "	#pragma diag_suppress 65\n" "	#pragma diag_suppress 91\n" "	#pragma diag_suppress 7\n" "#endif\n");
 				for(int i = 0; i < ast->count; i++){
 					char* tree = DumpASTTree(ast->nodes[i], 0);
 					printf("%s", tree);
@@ -113,7 +113,7 @@ int main(int argc, char** argv){
 			}
 			fptr = fopen(output, "w");
 			if(supIntl)
-				fprintf(fptr, "%s", "#ifdef __INTELLISENSE__\n" "	#pragma diag_suppress 29\n" "	#pragma diag_suppress 169\n" "	#pragma diag_suppress 130\n" "#endif");
+				fprintf(fptr, "%s", "#ifdef __INTELLISENSE__\n" "	#pragma diag_suppress 29\n" "	#pragma diag_suppress 169\n" "	#pragma diag_suppress 130\n" "	#pragma diag_suppress 109\n" "	#pragma diag_suppress 20\n" "	#pragma diag_suppress 65\n" "	#pragma diag_suppress 91\n" "	#pragma diag_suppress 7\n" "#endif\n");
 			for(int i = 0; i < ast->count; i++){
 				char* tree = DumpASTTree(ast->nodes[i], 0);
 				fprintf(fptr, "%s", tree);
@@ -234,6 +234,13 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_Assign:				val = tree->value.strVal == NULL ? "expr" : tree->value.strVal;	break;
 		case A_FunctionCall:		val = tree->value.strVal;	break;
 		case A_LitStr:				val = tree->value.strVal;	break;
+		case A_EnumValue: {
+			const int charCount = strlen(tree->value.strVal) + intlen(tree->secondaryValue.intVal) + (tree->value.intVal < 0) + 2 + 1;
+			char* buffer = malloc(charCount * sizeof(char));
+			snprintf(buffer, charCount, "%s)(%d", tree->value.strVal, tree->secondaryValue.intVal);
+			val = buffer;
+			break;
+		}
 		case A_LitInt:{
 			const int charCount = intlen(tree->value.intVal) + (tree->value.intVal < 0) + 1;
 			char* buffer = malloc(charCount * sizeof(char));
@@ -297,7 +304,9 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_AddressOf:			name = "AddressOf";			break;
 		case A_Dereference:			name = "Dereference";		break;
 		case A_LitStr:				name = "LitString";			break;
-		case A_StructDecl:			name = "StructDecl";	break;
+		case A_StructDecl:			name = "StructDecl";		break;
+		case A_EnumDecl:			name = "A_EnumDecl";		break;
+		case A_EnumValue:			name = "A_EnumValue";		break;
 	}
 	const char* type = calloc(1, sizeof(char));
 	switch(tree->type & 0xF0){

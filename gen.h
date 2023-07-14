@@ -103,9 +103,7 @@ static const char* GenFuncCall(ASTNode* node){
 	int pCount = params->count;
 	char* paramInit = calloc(1, sizeof(char));
 	for (int i = pCount - 1; i >= 0; i--) {
-		const char* const format = i > 3
-			? "%s	push	%%rax\n"
-			: "%s	movq	%%rax,	%s\n";
+		const char* const format = "%s	movq	%%rax,	%s\n";
 		char* pos = CalculateParamPosition(i);
 		const char* inner = GenExpressionAsm(params->nodes[i]);
 		const int charCount = strlen(inner) + strlen(format) + strlen(pos) + 1;
@@ -116,7 +114,7 @@ static const char* GenFuncCall(ASTNode* node){
 		free(pos);
 		free(buffer);
 	}
-	int offset = 8 * (pCount < 4 ? 4 : pCount);
+	int offset = pCount < 4 ? 32 : 32 + 8 * (pCount - 4);
 	offset = offset % 16 ? (offset / 16 + 1) * 16 : offset;
 	const char* format =
 		"	subq	$%d,	%%rsp\n"
@@ -913,6 +911,7 @@ static const char* GenStatementAsm(ASTNode* node){
 		case A_Continue:	return GenContinue(node);
 		case A_Break:		return GenBreak(node);
 		case A_StructDecl:	return GenStructDecl(node);
+		case A_EnumDecl:	return "";
 		default:			return GenExpressionAsm(node);
 	}
 }

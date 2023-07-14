@@ -9,6 +9,14 @@ static SymList* MakeSymList(SymEntry* entry, SymList* next){
 	return ret;
 }
 
+static SymEntry* MakeSymEntry(const char* key, FlexibleValue value, StructuralType sType){
+	SymEntry* ret = malloc(sizeof(SymEntry));
+	ret->key = key;
+	ret->value = value;
+	ret->sType = sType;
+	return ret;
+};
+
 static SymEntry* MakeVarEntry(const char* key, const char* val, PrimordialType type, SymEntry* cType){
 	SymEntry* ret = malloc(sizeof(SymEntry));
 	ret->key = key;
@@ -182,6 +190,36 @@ SymEntry* FindLocalVar(const char* key, int scope){
 	return FindVarPosition(key, scope, true);
 }
 
+SymList* InsertEnumName(const char* name){
+	if(name == NULL)	FatalM("No name supplied to InsertEnumName!", Line);
+	int hash = hash_oaat(name, strlen(name)) % CAPACITY;
+	if(hashArray[0] == NULL)
+		return NULL;
+	SymList* list = hashArray[0][hash];
+	if(list == NULL)
+		return hashArray[0][hash] = MakeSymList(MakeSymEntry(name, FlexNULL(), S_EnumName), NULL);
+	while((!streq(list->item->key, name) || list->item->sType != S_Composite) && list->next != NULL)
+		list = list->next;
+	if(!streq(list->item->key, name))
+		return list->next = MakeSymList(MakeSymEntry(name, FlexNULL(), S_EnumName), NULL);
+	FatalM("Redeclaration of enums is strictly forbidden!", Line);
+}
+
+SymList* InsertEnumValue(const char* name, int value){
+	if(name == NULL)	FatalM("No name supplied to InsertEnumValue!", Line);
+	int hash = hash_oaat(name, strlen(name)) % CAPACITY;
+	if(hashArray[0] == NULL)
+		return NULL;
+	SymList* list = hashArray[0][hash];
+	if(list == NULL)
+		return hashArray[0][hash] = MakeSymList(MakeSymEntry(name, FlexInt(value), S_EnumValue), NULL);
+	while((!streq(list->item->key, name) || list->item->sType != S_Composite) && list->next != NULL)
+		list = list->next;
+	if(!streq(list->item->key, name))
+		return list->next = MakeSymList(MakeSymEntry(name, FlexInt(value), S_EnumValue), NULL);
+	FatalM("Redeclaration of enum values is strictly forbidden!", Line);
+}
+
 SymList* InsertVar(const char* key, const char* value, PrimordialType type, SymEntry* cType, int scope){
 	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
 	if(hashArray[scope] == NULL)
@@ -299,6 +337,10 @@ SymEntry* FindFunc(const char* key){
 
 SymEntry* FindStruct(const char* key){
 	return FindGlobal(key, S_Composite);
+}
+
+SymEntry* FindEnumValue(const char* key){
+	return FindGlobal(key, S_EnumValue);
 }
 
 int GetLocalVarCount(int scope){

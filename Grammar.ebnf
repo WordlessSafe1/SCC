@@ -1,6 +1,8 @@
 <comment>				::= "//" { <letter> | <digit> | <symbol> | ' ' | '\t' }
 <program>				::= { <function> | <declaration> }
 <struct_declaration>	::= "struct" <id> '{' <declaration> { <declaration> } '}' ';'
+<enum_declaration>		::= "enum" [ <id> ] '{' [ <enum_value> { ',' <enum_value> } ] [ ',' ] '}'
+<enum_value>			::= <id> [ '=' ( <int> | <character_literal> ) ]
 <function>				::= <type> <id> "(" [ <type> <id> { ',' <type> <id> } ] ")" ( <block> | ';' )
 <block_item>			::= <statement> | <declaration>
 <block>					::= '{' [ <block_item> ] '}'

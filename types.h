@@ -99,6 +99,7 @@ enum eTokenCategory {
 	T_Arrow,
 	T_Period,
 	T_Union,
+	T_Enum,
 };
 
 enum eNodeType {
@@ -156,6 +157,8 @@ enum eNodeType {
 	A_Dereference,
 	A_LitStr,
 	A_StructDecl,
+	A_EnumDecl,
+	A_EnumValue,
 };
 
 union flexible_value {
@@ -206,7 +209,10 @@ enum eStructuralType {
 	S_Variable,
 	S_Function,
 	S_Composite,
-	S_Member
+	S_Member,
+	S_EnumName,
+	S_EnumValue,
+	S_Typedef,
 };
 
 struct SymEntry {
