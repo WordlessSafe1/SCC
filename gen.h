@@ -15,10 +15,31 @@ static const char* GenerateAsmFromList(ASTNodeList* list);
 
 static char* CalculateParamPosition(int n){
 	if(n > 3){
+		const char* format = "%d(%%rsp)";
+		const int charCount = strlen(format) + intlen(n) + 1;
+		char* buffer = calloc(charCount, sizeof(char));
+		snprintf(buffer, charCount, format, 32 + (8 * (n - 4)));
+		return buffer;
+	}
+	const char* loc = NULL;
+	switch(n){
+		case 0:		loc = "%rcx";	break;
+		case 1:		loc = "%rdx";	break;
+		case 2:		loc = "%r8";		break;
+		case 3:		loc = "%r9";		break;
+	}
+	char* buffer = calloc((strlen(loc) + 1), sizeof(char));
+	strncpy(buffer, loc, strlen(loc) + 1);
+	return buffer;
+}
+
+// Where the params will be when passed to the current function
+static char* CalculateLocalParamPosition(int n){
+	if(n > 3){
 		const char* format = "%d(%%rbp)";
 		const int charCount = strlen(format) + intlen(n) + 1;
 		char* buffer = calloc(charCount, sizeof(char));
-		snprintf(buffer, charCount, format, 8 * (n - 2));
+		snprintf(buffer, charCount, format, 48 + (8 * (n - 4)));
 		return buffer;
 	}
 	const char* loc = NULL;
@@ -928,7 +949,7 @@ static const char* GenFunctionAsm(ASTNode* node){
 	;
 	char* paramPlacement = calloc(1, sizeof(char));
 	for(int i = paramCount - 1; i >= 0; i--){
-		char* paramPos = CalculateParamPosition(i);
+		char* paramPos = CalculateLocalParamPosition(i);
 		char* varLoc = NULL;
 		if(i > 3)
 			varLoc = paramPos;
