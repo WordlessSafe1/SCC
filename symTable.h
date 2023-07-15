@@ -174,9 +174,9 @@ static SymEntry* FindVarPosition(const char* key, int scope, bool strict){
 	if (list == NULL)
 		if (scope < 1 || strict)	return NULL;
 		else		return FindVar(key, scope - 1);
-	while((!streq(list->item->key, key) || list->item->sType != S_Variable) && list->next != NULL)
+	while((list->item->sType != S_Variable || !streq(list->item->key, key)) && list->next != NULL)
 		list = list->next;
-	if(!streq(list->item->key, key) || list->item->sType != S_Variable)
+	if(list->item->sType != S_Variable || !streq(list->item->key, key))
 		if(scope < 1 || strict)	return NULL;
 		else		return FindVar(key, scope - 1);
 	return list->item;
@@ -198,9 +198,9 @@ SymList* InsertEnumName(const char* name){
 	SymList* list = hashArray[0][hash];
 	if(list == NULL)
 		return hashArray[0][hash] = MakeSymList(MakeSymEntry(name, FlexNULL(), S_EnumName), NULL);
-	while((!streq(list->item->key, name) || list->item->sType != S_Composite) && list->next != NULL)
+	while((list->item->sType != S_EnumName || !streq(list->item->key, name)) && list->next != NULL)
 		list = list->next;
-	if(!streq(list->item->key, name))
+	if(list->item->sType != S_EnumName || !streq(list->item->key, name))
 		return list->next = MakeSymList(MakeSymEntry(name, FlexNULL(), S_EnumName), NULL);
 	FatalM("Redeclaration of enums is strictly forbidden!", Line);
 }
@@ -213,9 +213,9 @@ SymList* InsertEnumValue(const char* name, int value){
 	SymList* list = hashArray[0][hash];
 	if(list == NULL)
 		return hashArray[0][hash] = MakeSymList(MakeSymEntry(name, FlexInt(value), S_EnumValue), NULL);
-	while((!streq(list->item->key, name) || list->item->sType != S_Composite) && list->next != NULL)
+	while((list->item->sType != S_EnumValue || !streq(list->item->key, name)) && list->next != NULL)
 		list = list->next;
-	if(!streq(list->item->key, name))
+	if(list->item->sType != S_EnumValue || !streq(list->item->key, name))
 		return list->next = MakeSymList(MakeSymEntry(name, FlexInt(value), S_EnumValue), NULL);
 	FatalM("Redeclaration of enum values is strictly forbidden!", Line);
 }
@@ -230,9 +230,9 @@ SymList* InsertVar(const char* key, const char* value, PrimordialType type, SymE
 		stackSize[scope] += align(GetTypeSize(type, cType), 16);
 		return hashArray[scope][hash] = MakeSymList(MakeVarEntry(key, value, type, cType), NULL);
 	}
-	while((!streq(list->item->key, key) || list->item->sType != S_Variable)&& list->next != NULL)
+	while((list->item->sType != S_Variable || !streq(list->item->key, key))&& list->next != NULL)
 		list = list->next;
-	if(!streq(list->item->key, key)){
+	if(list->item->sType != S_Variable || !streq(list->item->key, key)){
 		varCount[scope]++;
 		stackSize[scope] += align(GetTypeSize(type, cType), 16);
 		return list->next = MakeSymList(MakeVarEntry(key, value, type, cType), NULL);
@@ -248,9 +248,9 @@ SymList* InsertFunc(const char* key, FlexibleValue params, PrimordialType type, 
 	SymList* list = hashArray[0][hash];
 	if(list == NULL)
 		return hashArray[0][hash] = MakeSymList(MakeFuncEntry(key, params, type, cType), NULL);
-	while((!streq(list->item->key, key) || list->item->sType != S_Function) && list->next != NULL)
+	while((list->item->sType != S_Function || !streq(list->item->key, key)) && list->next != NULL)
 		list = list->next;
-	if(!streq(list->item->key, key))
+	if(list->item->sType != S_Function || !streq(list->item->key, key))
 		return list->next = MakeSymList(MakeFuncEntry(key, params, type, cType), NULL);
 	return list;
 }
@@ -264,9 +264,9 @@ SymList* InsertStruct(const char* name, SymEntry* members){
 	SymList* list = hashArray[0][hash];
 	if(list == NULL)
 		return hashArray[0][hash] = MakeSymList(MakeStructEntry(name, members), NULL);
-	while((!streq(list->item->key, name) || list->item->sType != S_Composite) && list->next != NULL)
+	while((list->item->sType != S_Composite || !streq(list->item->key, name)) && list->next != NULL)
 		list = list->next;
-	if(!streq(list->item->key, name))
+	if(list->item->sType != S_Composite || !streq(list->item->key, name))
 		return list->next = MakeSymList(MakeStructEntry(name, members), NULL);
 	list->item = MakeStructEntry(name, members);
 	return list;
@@ -281,9 +281,9 @@ SymList* InsertUnion(const char* name, SymEntry* members){
 	SymList* list = hashArray[0][hash];
 	if(list == NULL)
 		return hashArray[0][hash] = MakeSymList(MakeUnionEntry(name, members), NULL);
-	while((!streq(list->item->key, name) || list->item->sType != S_Composite) && list->next != NULL)
+	while((list->item->sType != S_Composite || !streq(list->item->key, name)) && list->next != NULL)
 		list = list->next;
-	if(!streq(list->item->key, name))
+	if(list->item->sType != S_Composite || !streq(list->item->key, name))
 		return list->next = MakeSymList(MakeUnionEntry(name, members), NULL);
 	list->item = MakeUnionEntry(name, members);
 	return list;
