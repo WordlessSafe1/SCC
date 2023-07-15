@@ -20,15 +20,23 @@ PrimordialType GetType(Token* t){
 
 PrimordialType ParseType(){
 	PrimordialType type;
-	switch(PeekToken()->type){
-		case T_Int:		type = P_Int;		break;
-		case T_Char:	type = P_Char;		break;
-		case T_Void:	type = P_Void;		break;
-		case T_Long:	type = P_Long;		break;
+	Token* tok = PeekToken();
+	switch(tok->type){
+		case T_Identifier:{
+			SymEntry* tdef = FindGlobal(tok->value.strVal, S_Typedef);
+			if(tdef == NULL)				return P_Undefined;
+			if((tdef->type & 0xF0) == P_Composite)	return P_Composite;
+			type = tdef->type;
+			break;
+		}
+		case T_Int:			type = P_Int;		break;
+		case T_Char:		type = P_Char;		break;
+		case T_Void:		type = P_Void;		break;
+		case T_Long:		type = P_Long;		break;
+		case T_Enum:
 		case T_Union:
-		case T_Struct:	return P_Composite;	// Structs must be parsed with ParseCompRef()
-		case T_Enum:	type = P_Int;	GetToken();	break;
-		default:		return P_Undefined;
+		case T_Struct:		return P_Composite;	// Structs must be parsed with ParseCompRef()
+		default:			return P_Undefined;
 	}
 	GetToken();
 	while(PeekToken()->type == T_Asterisk){
@@ -42,7 +50,17 @@ PrimordialType ParseType(){
 PrimordialType PeekType(){
 	PrimordialType type;
 	int i = 1;
-	switch(PeekToken()->type){
+	Token* tok = PeekToken();
+	switch(tok->type){
+		case T_Identifier: {
+			SymEntry* tdef = FindGlobal(tok->value.strVal, S_Typedef);
+			if (tdef == NULL){
+				return P_Undefined;
+			}
+			if (tdef->type == P_Composite)	return P_Composite;
+			type = tdef->type;
+			break;
+		}
 		case T_Int:		type = P_Int;		break;
 		case T_Char:	type = P_Char;		break;
 		case T_Void:	type = P_Void;		break;
@@ -64,17 +82,37 @@ PrimordialType PeekType(){
 /// @return A pointer to the struct definition.
 SymEntry* ParseCompRef(PrimordialType* type){
 	Token* cTok = GetToken();
-	if(cTok->type != T_Struct && cTok->type != T_Union)
-		FatalM("Aliased composites not yet supported! (Internal @ parse.h)", __LINE__);
-	Token* tok = GetToken();
-	if(tok->type != T_Identifier)		FatalM("Expected identifier after 'struct' keyword!", Line);
-	const char* id = tok->value.strVal;
+	const char* id = "";
+	SymEntry* tdef = NULL;
+	switch(cTok->type){
+		case T_Identifier:
+			tdef = FindGlobal(cTok->value.strVal, S_Typedef);
+			if (tdef == NULL)
+				FatalM("Expected typename!", Line);
+			*type = tdef->type;
+			break;
+		case T_Enum:
+			*type = P_Int;
+			// Fall through
+		case T_Struct:
+		case T_Union:
+			{
+				Token* tok = GetToken();
+				if(tok->type != T_Identifier)		FatalM("Expected identifier after 'struct' keyword!", Line);
+				id = tok->value.strVal;
+			}
+			break;
+		default:
+			// Should never be able to hit this
+			FatalM("Expected typename!", Line);
+	}
 	while(PeekToken()->type == T_Asterisk) {
 		GetToken();
 		(*type)++;
 	}
-	SymEntry* cType = FindStruct(id);
-	if(cType == NULL)	FatalM("Undefined composite!", Line);
+	if(cTok->type == T_Enum)
+		return NULL;
+	SymEntry* cType = cTok->type == T_Identifier ? tdef->cType : FindStruct(id);
 	return cType;
 }
 
@@ -480,7 +518,12 @@ ASTNode* ParseReturnStatement(){
 ASTNode* ParseDeclaration(){
 	PrimordialType type = ParseType();
 	if(type == P_Undefined)			FatalM("Expected typename!", Line);
-	SymEntry* cType = ((type & 0xF0) == P_Composite) ? ParseCompRef(&type) : NULL;
+	SymEntry* cType = NULL;
+	if((type & 0xF0) == P_Composite){
+		cType = ParseCompRef(&type);
+		if(cType == NULL && (type & 0xF0) == P_Composite)
+			FatalM("Undefined composite!", Line);
+	}
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)	FatalM("Expected identifier!", Line);
 	const char* id = tok->value.strVal;
@@ -542,10 +585,10 @@ ASTNode* ParseForLoop(){
 	EnterScope();
 	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in for loop!", Line);
 	ASTNode* initializer = NULL;
-	switch(PeekToken()->type){
+	if(PeekType() != P_Undefined)
+		initializer = ParseDeclaration();
+	else switch(PeekToken()->type){
 		case T_Semicolon:	break;
-		case T_Char:
-		case T_Int:			initializer = ParseDeclaration();	break;
 		default:			initializer = ParseExpression();	break;
 	}
 	if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon in for loop!", Line);
@@ -591,7 +634,12 @@ ASTNode* ParseBlock(){
 ASTNode* ParseFunction(){
 	PrimordialType type = ParseType();
 	if(type == P_Undefined)					FatalM("Invalid function declaration; Expected typename.", Line);
-	SymEntry* cType = type == P_Composite ? ParseCompRef(&type) : NULL;
+	SymEntry* cType = NULL;
+	if((type & 0xF0) == P_Composite){
+		cType = ParseCompRef(&type);
+		if(cType == NULL && (type & 0xF0) == P_Composite)
+			FatalM("Undefined composite!", Line);
+	}
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)			FatalM("Invalid function declaration; Expected identifier.", Line);
 	int idLen = strlen(tok->value.strVal) + 1;
@@ -604,6 +652,8 @@ ASTNode* ParseFunction(){
 			GetToken();
 		PrimordialType paramType = ParseType();
 		if(paramType == P_Undefined)		FatalM("Invalid type in parameter list!", Line);
+		if(paramType == P_Composite && (NULL != ParseCompRef(&paramType)))
+			FatalM("Composite parameters not yet supported!", Line);
 		Token* t = GetToken();
 		if(t->type != T_Identifier)			FatalM("Expected identifier in parameter list!", Line);
 		int charCount = strlen(t->value.strVal) + 1;
@@ -726,9 +776,49 @@ ASTNode* ParseCompositeDeclaration(){
 	return ret;
 }
 
+ASTNode* ParseTypedef(){
+	if(GetToken()->type != T_Typedef)	FatalM("Expected 'typedef' keyword to begin typedef!", Line);
+	Token* advCTok = PeekToken();
+	Token* advITok = PeekTokenN(1);
+	PrimordialType type = ParseType();
+	SymEntry* cType = NULL;
+	bool advDecl = false;
+	if(type == P_Composite){
+		cType = ParseCompRef(&type);
+		if(cType == NULL && advCTok->type != T_Enum){
+			if(advITok->type != T_Identifier)	FatalM("Expected identifier in advance declaration typedef!", Line);
+			advDecl = true;
+			SymList* list = NULL;
+			switch(advCTok->type){
+				case T_Union:	list = InsertUnion(advITok->value.strVal,	NULL);	break;
+				case T_Struct:	list = InsertStruct(advITok->value.strVal,	NULL);	break;
+				default:		FatalM("Unexpected composite type! (Internal @ parse.h)", __LINE__);
+			}
+			if(list == NULL || list->item == NULL)
+				FatalM("Failed to create shadown composite! (Internal @ parse.h)", __LINE__);
+			cType = list->item;
+			
+		}
+	}
+	free(advCTok);
+	free(advITok);
+	Token* tok = GetToken();
+	if (tok->type != T_Identifier){
+		if (tok->type != T_Semicolon)	FatalM("Expected semicolon after typedef!", Line);
+		if(!advDecl)					FatalM("Anonymous typedefs not yet supported!", Line);
+		return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
+	}
+	const char* id = tok->value.strVal;
+	if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon after typedef!", Line);
+	if(NULL == InsertTypedef(id, type, cType))	FatalM("Failed to create typedef SymEntry!", Line);
+	return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
+}
+
 ASTNode* ParseNode(){
 	int i = 0;
 	Token* tok = PeekTokenN(i);
+	if(tok->type == T_Typedef)
+		return ParseTypedef();
 	while(tok->type != T_OpenParen && tok->type != T_Equal && tok->type != T_Semicolon && tok->type != T_OpenBrace)
 		tok = PeekTokenN(++i);
 	switch(tok->type){

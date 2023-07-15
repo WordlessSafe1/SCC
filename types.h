@@ -100,6 +100,7 @@ enum eTokenCategory {
 	T_Period,
 	T_Union,
 	T_Enum,
+	T_Typedef,
 };
 
 enum eNodeType {
@@ -325,6 +326,8 @@ int GetTypeSize(PrimordialType type, SymEntry* compositeType){
 	switch(type & 0xF0){
 		case P_Composite:
 			if(compositeType == NULL)	FatalM("Expected composite type! (In types.h)", __LINE__);
+			if(compositeType->sValue.intVal == -1)
+				FatalM("Invalid use of incomplete type!", Line);
 			return compositeType->sValue.intVal;
 		default:	return GetPrimSize(type);
 	}

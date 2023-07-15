@@ -2,6 +2,9 @@
 
 #define CAPACITY 1000
 
+SymList* UpdateStruct(SymList* list, const char* name, SymEntry* members);
+SymList* UpdateUnion(SymList* list, const char* name, SymEntry* members);
+
 static SymList* MakeSymList(SymEntry* entry, SymList* next){
 	SymList* ret = malloc(sizeof(SymList));
 	ret->item = entry;
@@ -13,6 +16,15 @@ static SymEntry* MakeSymEntry(const char* key, FlexibleValue value, StructuralTy
 	SymEntry* ret = malloc(sizeof(SymEntry));
 	ret->key = key;
 	ret->value = value;
+	ret->sType = sType;
+	return ret;
+};
+
+static SymEntry* MakeTypedSymEntry(const char* key, PrimordialType type, SymEntry* cType, StructuralType sType) {
+	SymEntry* ret = malloc(sizeof(SymEntry));
+	ret->key = key;
+	ret->cType = cType;
+	ret->type = type;
 	ret->sType = sType;
 	return ret;
 };
@@ -51,6 +63,9 @@ static SymEntry* MakeStructEntry(const char* name, SymEntry* members){
 	ret->type = P_Composite;
 	ret->sType = S_Composite;
 	ret->cType = NULL;
+	if(members == NULL)
+		ret->sValue.intVal = -1;
+	return ret;
 }
 
 static SymEntry* MakeUnionEntry(const char* name, SymEntry* members){
@@ -69,6 +84,9 @@ static SymEntry* MakeUnionEntry(const char* name, SymEntry* members){
 	ret->type = P_Composite;
 	ret->sType = S_Composite;
 	ret->cType = NULL;
+	if(members == NULL)
+		ret->sValue.intVal = -1;
+	return ret;
 }
 
 SymEntry* MakeCompMember(const char* name, SymEntry* next, PrimordialType type, SymEntry* cType){
@@ -268,8 +286,8 @@ SymList* InsertStruct(const char* name, SymEntry* members){
 		list = list->next;
 	if(list->item->sType != S_Composite || !streq(list->item->key, name))
 		return list->next = MakeSymList(MakeStructEntry(name, members), NULL);
-	list->item = MakeStructEntry(name, members);
-	return list;
+	if(list->item->value.ptrVal != NULL)	WarnM("Overriding previous composite declaration!", Line);
+	return UpdateStruct(list, name, members);
 }
 
 SymList* InsertUnion(const char* name, SymEntry* members){
@@ -285,7 +303,24 @@ SymList* InsertUnion(const char* name, SymEntry* members){
 		list = list->next;
 	if(list->item->sType != S_Composite || !streq(list->item->key, name))
 		return list->next = MakeSymList(MakeUnionEntry(name, members), NULL);
-	list->item = MakeUnionEntry(name, members);
+	if(list->item->value.ptrVal != NULL)	WarnM("Overriding previous composite declaration!", Line);
+	return UpdateUnion(list, name, members);
+}
+
+SymList* InsertTypedef(const char* alias, PrimordialType type, SymEntry* cType){
+	if(alias == NULL)	FatalM("No alias supplied to InsertTypeDef! (Internal @ symTable.h)", __LINE__);
+	SymEntry* entry = MakeTypedSymEntry(alias, type, cType, S_Typedef);
+	int hash = hash_oaat(alias, strlen(alias)) % CAPACITY;
+	if(hashArray[0] == NULL)
+		return NULL;
+	SymList* list = hashArray[0][hash];
+	if(list == NULL)
+		return hashArray[0][hash] = MakeSymList(entry, NULL);
+	while((list->item->sType != S_Typedef || !streq(list->item->key, alias)) && list->next != NULL)
+		list = list->next;
+	if(list->item->sType != S_Typedef || !streq(list->item->key, alias))
+		return list->next = MakeSymList(entry, NULL);
+	list->item = entry;
 	return list;
 }
 
