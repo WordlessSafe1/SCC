@@ -183,6 +183,11 @@ ASTNode* ParseBase(){
 				ASTNode* node = ParseVariableReference(tok);
 				if (node == NULL)	FatalM("Undefined struct member!", Line);
 				if(node->cType == NULL)	FatalM("Can only access members of a composite!", Line);
+				if(PeekToken()->type == T_Arrow){
+					if(!(node->type & 0x0F))		FatalM("Pointer member accessor may only be used on a pointer!", Line);
+				}
+				else
+					if(node->type & 0x0F)			FatalM("Composite member accessor used on pointer!", Line);
 				while(PeekToken()->type == T_Arrow || PeekToken()->type == T_Period){
 					Token* accessor = GetToken();
 					Token* idTok = GetToken();
