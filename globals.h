@@ -13,6 +13,7 @@ extern_main int Line init(1);
 extern_main int scope init(0);
 extern_main int lVar init(0);
 extern_main int* stackIndex;
+extern_main const char* curFile;
 
 extern_main void FatalM(const char*, int);
 extern_main void WarnM(const char*, int);

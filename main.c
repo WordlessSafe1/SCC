@@ -61,6 +61,7 @@ int main(int argc, char** argv){
 	bool print		= false;
 	bool supIntl	= false;
 	bool asASM		= false;
+	const char* incDir = "./include";
 	for(int i = 1; i < argc; i++){
 		if(argv[i][0] == '-'){
 			if(strlen(argv[i]) == 2){
@@ -79,7 +80,11 @@ int main(int argc, char** argv){
 					default:	FatalM("Unknown flag(s) supplied!", NOLINE);
 				}
 			}
-			else if(streq(argv[i], "-sI"))	supIntl		= true;
+			else if(streq(argv[i], "-sI"))	supIntl	= true;
+			else if(streq(argv[i], "-isystem")){
+				if(i+1 >= argc)	FatalM("Trailing argument '-isystem'!", NOLINE);
+				incDir = argv[++i];
+			}
 			else							FatalM("Unknown flag(s) supplied!", NOLINE);
 		}
 		else if(inputs == MAXFILES - 2)	FatalM("Too many object files!", NOLINE);
@@ -88,16 +93,26 @@ int main(int argc, char** argv){
 	if (inputs == 0)	FatalM("No input files specified!", NOLINE);
 	if(outputTarget == NULL && !dump)	outputTarget = "a.out";
 	for(int i = 0; i < inputs; i++){
+		curFile = inputTargets[i];
+		const char* format = "cpp.exe -nostdinc -isystem %s %s -o %s";
+		char* target = AlterFileExtension(inputTargets[i], "tmp_ppc");
+		int charCount = strlen(format) + strlen(incDir) + strlen(inputTargets[i]) + strlen(target);
+		char* cmd = malloc((charCount + 1) * sizeof(char));
+		snprintf(cmd, charCount, format, incDir, inputTargets[i], target);
+		system(cmd);
+		free(cmd);
 		const char* output = outputTarget;
 		if(!dump && (inputs != 1 || !asASM))
 			output = NULL;
-		fptr = fopen(inputTargets[i], "r");
+		fptr = fopen(target, "r");
 		Line = 1;
 		ASTNodeList* ast = MakeASTNodeList();
 		while(PeekToken() != NULL)
 			AddNodeToASTList(ast, ParseNode());
 		if(GetToken() != NULL)	FatalM("Expected EOF!", Line);
 		fclose(fptr);
+		_unlink(target);
+		free(target);
 		Line = NOLINE;
 		if(dump){
 			if(output == NULL || print){
@@ -191,7 +206,7 @@ char* AlterFileExtension(const char* filename, const char* extension){
 
 void FatalM(const char* msg, int line){
 	if(line == NOLINE)	printf("Fatal error encountered:\n\t%s\n", msg);
-	else				printf("Fatal error encountered on ln %d:\n\t%s\n", line, msg);
+	else				printf("Fatal error encountered on ln %d in %s:\n\t%s\n", line, curFile, msg);
 	exit(-1);
 }
 

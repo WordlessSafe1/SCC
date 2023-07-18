@@ -5,6 +5,8 @@
 #include "types.h"
 #include "globals.h"
 
+Token* GetToken();
+
 static Token* Tokenize(const char* str){
 	Token* token = malloc(sizeof(Token));
 	bool found = false;
@@ -136,6 +138,21 @@ char* ShiftToken(){
 		while(c == '\0')	c = fgetc(fptr);
 		if(c == EOF)
 			break;
+		if(c == '#'){
+			Token* tok = GetToken();
+			if(tok->type != T_LitInt)	FatalM("Expected pre-processor line number!", Line);
+			int l = tok->value.intVal;
+			tok = GetToken();
+			if(tok->type != T_LitStr)	FatalM("Expected pre-processor file name!", Line);
+			if(tok->value.strVal[0] != '<'){	// is filename
+				if(!streq(tok->value.strVal, curFile))
+					curFile = _strdup(tok->value.strVal);
+				Line = l;
+			}
+			while(c != '\n' && c != EOF)
+				c = fgetc(fptr);
+			continue;
+		}
 		if(charLit){
 			token[i++] = c;
 			if(c == '\'' && !escape)
@@ -165,8 +182,9 @@ char* ShiftToken(){
 		if(c == '\n' || c == '\t' || c == ' '){
 			if(c == '\n')
 				Line++;
-			if(i)	break;
-			else	continue;
+			if(!i)	continue;
+			fseek(fptr, -1, SEEK_CUR);
+			break;
 		}
 		if(strchr("(){};-~!+*/%%<>=&^|?:.,[]", c)){
 			if(i){

@@ -101,6 +101,7 @@ enum eTokenCategory {
 	T_Union,
 	T_Enum,
 	T_Typedef,
+	T_Octothorp,
 };
 
 enum eNodeType {
