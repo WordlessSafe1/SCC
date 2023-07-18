@@ -44,6 +44,7 @@ static Token* Tokenize(const char* str){
 		else if(streq(str, "int"))		token->type = T_Int;
 		else if(streq(str, "char"))		token->type = T_Char;
 		else if(streq(str, "void"))		token->type = T_Void;
+		else if(streq(str, "long"))		token->type = T_Long;
 		else if(streq(str, "<="))		token->type = T_LessEqual;
 		else if(streq(str, ">="))		token->type = T_GreaterEqual;
 		else if(streq(str, "=="))		token->type = T_DoubleEqual;
@@ -78,7 +79,7 @@ static Token* Tokenize(const char* str){
 		else if(streq(str, "typedef"))	token->type = T_Typedef;
 		else if(isdigit(str[0])){
 			token->type = T_LitInt;
-			token->value.intVal = atoi(str);
+			token->value.intVal = atol(str);
 		}
 		else if(str[0] == '\''){
 			if(str[2] != '\'' && str[1] != '\\')	FatalM("Invalid character literal!", Line);

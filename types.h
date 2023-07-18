@@ -163,7 +163,7 @@ enum eNodeType {
 };
 
 union flexible_value {
-	int intVal;
+	long intVal;
 	const char* strVal;
 	void* ptrVal;
 };

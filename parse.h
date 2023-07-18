@@ -13,6 +13,7 @@ PrimordialType GetType(Token* t){
 	switch(t->type){
 		case T_Int:		return P_Int;
 		case T_Char:	return P_Char;
+		case T_Long:	return P_Long;
 		case T_Void:	return P_Void;
 		default:		return P_Undefined;
 	}
@@ -231,7 +232,13 @@ ASTNode* ParseBase(){
 			return expr;
 		}
 		case T_LitInt:{
-			PrimordialType type = tok->value.intVal >= 0 && tok->value.intVal < 256 ? P_Char : P_Int;
+			PrimordialType type = P_Undefined;
+			if(tok->value.intVal >= 0 && tok->value.intVal < 256)
+				type = P_Char;
+			else if(tok->value.intVal >= -2147483647 && tok->value.intVal <= 2147483647)
+				type = P_Int;
+			else
+				type = P_Long;
 			return MakeASTLeaf(A_LitInt, type, FlexInt(tok->value.intVal));
 		}
 		case T_LitStr:		return MakeASTLeaf(A_LitStr, P_Char + 1, tok->value);
@@ -545,9 +552,9 @@ ASTNode* ParseDeclaration(){
 	if(!scope){
 		if(expr->op != A_LitInt)	FatalM("Non-constant expression in global varibale declaration!", Line);
 		int typeSize = GetTypeSize(type, cType);
-		// If expression result is too large to fit in variable, truncate it
-		if(expr->value.intVal >= ((unsigned long long)1 << (8 * typeSize)))
-			expr->value.intVal &= ((unsigned long long)1 << (8 * typeSize)) - 1;
+		if(typeSize < 8) // If expression result is too large to fit in variable, truncate it
+			if(expr->value.intVal >= ((unsigned long long)1 << (8 * typeSize)))
+				expr->value.intVal &= ((unsigned long long)1 << (8 * typeSize)) - 1;
 		return MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(expr->value.intVal), cType);
 	}
 	return MakeASTNode(A_Declare, type, expr, NULL, NULL, FlexStr(id), cType);
