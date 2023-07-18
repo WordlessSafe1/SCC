@@ -79,6 +79,7 @@ static Token* Tokenize(const char* str){
 		else if(streq(str, "union"))	token->type = T_Union;
 		else if(streq(str, "enum"))		token->type = T_Enum;
 		else if(streq(str, "typedef"))	token->type = T_Typedef;
+		else if(streq(str, "..."))		token->type = T_Ellipsis;
 		else if(isdigit(str[0])){
 			token->type = T_LitInt;
 			token->value.intVal = atol(str);
@@ -201,7 +202,7 @@ char* ShiftToken(){
 				fseek(fptr, -1, SEEK_CUR);
 			}
 			// If double symbol is valid operator
-			if(strchr("=|&<>/+-", c)){
+			if(strchr("=|&<>/+-.", c)){
 				char nextChar = fgetc(fptr);
 				if(c == nextChar){
 					if(c == '/'){
@@ -216,6 +217,15 @@ char* ShiftToken(){
 					if(strchr("<>", c)){
 						nextChar = fgetc(fptr);
 						if(nextChar == '='){
+							token[i++] = nextChar;
+							break;
+						}
+						fseek(fptr, -1, SEEK_CUR);
+					}
+					// If three of symbol is valid operator
+					if(c == '.'){
+						nextChar = fgetc(fptr);
+						if(nextChar == c){
 							token[i++] = nextChar;
 							break;
 						}

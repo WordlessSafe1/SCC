@@ -124,15 +124,21 @@ ASTNode* ParseFunctionCall(Token* tok){
 		FatalM("Implicit function declarations not yet supported!", Line);
 	Parameter* paramPrototype = (Parameter*)func->value.ptrVal;
 	ASTNodeList* params = MakeASTNodeList();
+	bool variadic = false;
 	while(PeekToken()->type != T_CloseParen){
 		if(PeekToken()->type == T_Comma)
 			GetToken();
-		if(paramPrototype == NULL)	FatalM("Too many arguments in function call!", Line);
+		if(!variadic && paramPrototype == NULL)	FatalM("Too many arguments in function call!", Line);
+		if(paramPrototype != NULL && paramPrototype->type == P_Void && streq(paramPrototype->id, "..."))
+			variadic = true;
 		ASTNode* expr = ParseExpression();
 		if(expr == NULL)	FatalM("Invalid expression used as parameter!", Line);
-		int typeCheck = CheckTypeCompatibility(paramPrototype->type, expr->type);
-		if(typeCheck != TYPES_COMPATIBLE && typeCheck != TYPES_WIDEN_RHS)	FatalM("Incompatible type in function call!", Line);
-		paramPrototype = paramPrototype->next;
+		if(!variadic){
+			int typeCheck = CheckTypeCompatibility(paramPrototype->type, expr->type);
+			if(typeCheck != TYPES_COMPATIBLE && typeCheck != TYPES_WIDEN_RHS)	FatalM("Incompatible type in function call!", Line);
+		}
+		if(paramPrototype != NULL)
+			paramPrototype = paramPrototype->next;
 		AddNodeToASTList(params, expr);
 	}
 	if(paramPrototype != NULL)				FatalM("Too few arguments in function call!", Line);
@@ -662,6 +668,12 @@ ASTNode* ParseFunction(){
 	while(PeekToken()->type != T_CloseParen){
 		if(PeekToken()->type == T_Comma)
 			GetToken();
+		if(PeekToken()->type == T_Ellipsis){
+			GetToken();
+			if(PeekToken()->type != T_CloseParen)	FatalM("Varaidic parameters must be the last parameter in a function prototype!", Line);
+			params = MakeParam("...", P_Void, params);
+			break;
+		}
 		PrimordialType paramType = ParseType();
 		if(paramType == P_Undefined)		FatalM("Invalid type in parameter list!", Line);
 		if(paramType == P_Composite && (NULL != ParseCompRef(&paramType)))
