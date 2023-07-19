@@ -40,12 +40,13 @@ char* target;
 
 void Usage(char* file){
 	const char* format =
-		"Usage: %s [-pqSt] [-o outFile] file [file ...]\n"
+		"Usage: %s [-pqSt] [-o outFile] [-isystem includes] file [file ...]\n"
 		"	-q Disable warnings\n"
 		"	-p Print the output to the console\n"
 		"	-S Generate assembly files, but don't assemble or link them\n"
 		"	-t Dump the Abstract Syntax Trees for each file\n"
 		"	-o outfile, produce the outfile executable file\n"
+		"	-isystem includes, pecify an alternate locaton for the standard headers\n"
 	;
 	printf(format, file);
 	exit(0);
