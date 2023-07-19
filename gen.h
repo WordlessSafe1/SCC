@@ -763,6 +763,7 @@ static const char* GenWhileLoop(ASTNode* node){
 			"%d0:\n"
 			"0:\n"
 			"%s"						// Action
+			"8:\n"
 			"%s"						// Condition
 			"	cmp		$0,		%%rax\n"
 			"	jne		%d0b\n"
@@ -781,6 +782,7 @@ static const char* GenWhileLoop(ASTNode* node){
 		"	cmp		$0,		%%rax\n"
 		"	je		%d9f\n"
 		"%s"						// Action
+		"8:\n"
 		"	jmp		%d0b\n"
 		"%d9:\n"
 		"9:\n"
