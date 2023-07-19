@@ -99,7 +99,7 @@ int main(int argc, char** argv){
 		int charCount = strlen(format) + strlen(incDir) + strlen(inputTargets[i]) + strlen(target);
 		char* cmd = malloc((charCount + 1) * sizeof(char));
 		snprintf(cmd, charCount, format, incDir, inputTargets[i], target);
-		system(cmd);
+		if(system(cmd))		exit(1);
 		free(cmd);
 		const char* output = outputTarget;
 		if(!dump && (inputs != 1 || !asASM))
