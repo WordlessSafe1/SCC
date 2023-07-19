@@ -162,7 +162,8 @@ ASTNode* ParseFunctionCall(Token* tok){
 			paramPrototype = paramPrototype->next;
 		AddNodeToASTList(params, expr);
 	}
-	if(paramPrototype != NULL)				FatalM("Too few arguments in function call!", Line);
+	if(paramPrototype != NULL && (paramPrototype->type != P_Void || !streq(paramPrototype->id, "...")))
+		FatalM("Too few arguments in function call!", Line);
 	if(GetToken()->type != T_CloseParen)	FatalM("Missing close parenthesis in function call!", Line);
 	PrimordialType type = P_Undefined;
 	SymEntry* cType = NULL;
