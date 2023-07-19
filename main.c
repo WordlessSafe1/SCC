@@ -36,6 +36,7 @@ char* AlterFileExtension(const char* filename, const char* extension);
 char* DumpASTTree(ASTNode* tree, int depth);
 char* charStr(char c, int count);
 bool noWarn = false;
+char* target;
 
 void Usage(char* file){
 	const char* format =
@@ -95,7 +96,7 @@ int main(int argc, char** argv){
 	for(int i = 0; i < inputs; i++){
 		curFile = inputTargets[i];
 		const char* format = "cpp.exe -nostdinc -isystem %s %s -o %s";
-		char* target = AlterFileExtension(inputTargets[i], "tmp_ppc");
+		target = AlterFileExtension(inputTargets[i], "tmp_ppc");
 		int charCount = strlen(format) + strlen(incDir) + strlen(inputTargets[i]) + strlen(target);
 		char* cmd = malloc((charCount + 1) * sizeof(char));
 		snprintf(cmd, charCount, format, incDir, inputTargets[i], target);
@@ -113,6 +114,7 @@ int main(int argc, char** argv){
 		fclose(fptr);
 		_unlink(target);
 		free(target);
+		target = NULL;
 		Line = NOLINE;
 		if(dump){
 			if(output == NULL || print){
@@ -207,6 +209,12 @@ char* AlterFileExtension(const char* filename, const char* extension){
 void FatalM(const char* msg, int line){
 	if(line == NOLINE)	printf("Fatal error encountered:\n\t%s\n", msg);
 	else				printf("Fatal error encountered on ln %d in %s:\n\t%s\n", line, curFile, msg);
+	if (fptr != NULL)
+		fclose(fptr);
+	if(target != NULL){
+		_unlink(target);
+		free(target);
+	}
 	exit(-1);
 }
 
