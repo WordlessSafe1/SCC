@@ -1,0 +1,3 @@
+[submodule "Tests"]
+	path = Tests
+	url = https://github.com/WordlessSafe1/SCC-Tests
