@@ -79,6 +79,7 @@ static Token* Tokenize(const char* str){
 		else if(streq(str, "union"))	token->type = T_Union;
 		else if(streq(str, "enum"))		token->type = T_Enum;
 		else if(streq(str, "typedef"))	token->type = T_Typedef;
+		else if(streq(str, "extern"))	token->type = T_Extern;
 		else if(streq(str, "..."))		token->type = T_Ellipsis;
 		else if(isdigit(str[0])){
 			token->type = T_LitInt;

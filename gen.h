@@ -691,7 +691,7 @@ static char* GenDeclaration(ASTNode* node){
 		const char* id = node->value.strVal;
 		varLoc = malloc((strlen(id) + 7) * sizeof(char));
 		snprintf(varLoc, strlen(id) + 7, "%s(%%rip)", id);
-		InsertVar(node->value.strVal, varLoc, node->type, node->cType, scope);
+		InsertVar(node->value.strVal, varLoc, node->type, node->cType, node->secondaryValue.intVal, scope);
 		for(DbLnkList* bss = bss_vars; bss != NULL; bss = bss->next){
 			if(!streq(bss->val, id))
 				continue;
@@ -699,6 +699,13 @@ static char* GenDeclaration(ASTNode* node){
 			bss->next->prev = bss->prev;
 			free(bss);
 		}
+		// If external, we don't want to allocate space or generate ASM for it.
+		// This is after the BSS removal, because we want to be sure we aren't allocating space for a previously defined reference.
+		// int a; extern int a;
+		// is treated the same as 
+		// extern int a;
+		if(node->secondaryValue.intVal == C_Extern)
+			return calloc(1, sizeof(char));
 		if(node->lhs == NULL){
 			DbLnkList* bss = MakeDbLnkList((void*)id, NULL, bss_vars);
 			bss_vars->prev = bss;
@@ -708,18 +715,19 @@ static char* GenDeclaration(ASTNode* node){
 		if (node->lhs->op != A_LitInt)
 			FatalM("Non-constant expression used in global variable declaration!", Line);
 		const char* format =
+			"	.globl %s\n"
 			"%s:\n"
 			"	.quad	%d\n"
 		;
 		switch(GetTypeSize(node->type, node->cType)){
-			case 1:		format = "%s:\n	.byte	%d\n"; break;
-			case 4:		format = "%s:\n	.long	%d\n"; break;
-			case 8:		format = "%s:\n	.quad	%d\n"; break;
+			case 1:		format = "	.globl %s\n%s:\n	.byte	%d\n"; break;
+			case 4:		format = "	.globl %s\n%s:\n	.long	%d\n"; break;
+			case 8:		format = "	.globl %s\n%s:\n	.quad	%d\n"; break;
 			default:	break;
 		}
-		const int charCount = strlen(format) + strlen(id) + intlen(node->lhs->value.intVal) + 1;
+		const int charCount = strlen(format) + (2 * strlen(id)) + intlen(node->lhs->value.intVal) + 1;
 		char* buffer = malloc(charCount * sizeof(char));
-		snprintf(buffer, charCount, format, id, node->lhs->value.intVal);
+		snprintf(buffer, charCount, format, id, id, node->lhs->value.intVal);
 		data_section = realloc(data_section, (strlen(data_section) + charCount) * sizeof(char));
 		strncat(data_section, buffer, charCount);
 		free(buffer);
@@ -739,7 +747,7 @@ static char* GenDeclaration(ASTNode* node){
 		expr = malloc(len * sizeof(char));
 		snprintf(expr, len, format, rhs, varLoc);
 	}
-	InsertVar(node->value.strVal, varLoc, node->type, node->cType, scope);
+	InsertVar(node->value.strVal, varLoc, node->type, node->cType, C_Default, scope);
 	return expr;
 }
 
@@ -959,7 +967,7 @@ static const char* GenFunctionAsm(ASTNode* node){
 			varLoc = malloc(charCount * sizeof(char));
 			snprintf(varLoc, charCount, format, offset);
 		}
-		InsertVar(params->id, varLoc, params->type, NULL, scope);
+		InsertVar(params->id, varLoc, params->type, NULL, C_Default, scope);
 		const char* const format = "	movq	%s,	%s\n";
 		const int charCount = strlen(format) + strlen(varLoc) + strlen(paramPos) + 1;
 		char* buffer = calloc(charCount, sizeof(char));

@@ -19,9 +19,21 @@ PrimordialType GetType(Token* t){
 	}
 }
 
-PrimordialType ParseType(){
+PrimordialType ParseType(StorageClass* sc){
 	PrimordialType type;
 	Token* tok = PeekToken();
+	// If SC is NULL, then storage classes are not supported; Parsing should be skipped in order to force a fail later on.
+	if(sc != NULL){
+		switch(tok->type){
+			case T_Extern:	GetToken();	*sc = C_Extern;	break;
+			default:		break;
+		}
+		tok = PeekToken();
+		switch(tok->type){
+			case T_Extern:	FatalM("Cannot use more than one storage class!", Line);
+			default:		break;
+		}
+	}
 	switch(tok->type){
 		case T_Identifier:{
 			SymEntry* tdef = FindGlobal(tok->value.strVal, S_Typedef);
@@ -48,10 +60,19 @@ PrimordialType ParseType(){
 	return type;
 }
 
-PrimordialType PeekType(){
+extern PrimordialType PeekType(){
 	PrimordialType type;
 	int i = 1;
 	Token* tok = PeekToken();
+	switch(tok->type){
+		case T_Extern:	GetToken();	break;
+		default:		break;
+	}
+	tok = PeekToken();
+	switch(tok->type){
+		case T_Extern:	FatalM("Cannot use more than one storage class!", Line);
+		default:		break;
+	}
 	switch(tok->type){
 		case T_Identifier: {
 			SymEntry* tdef = FindGlobal(tok->value.strVal, S_Typedef);
@@ -534,7 +555,9 @@ ASTNode* ParseReturnStatement(){
 }
 
 ASTNode* ParseDeclaration(){
-	PrimordialType type = ParseType();
+	StorageClass sc = C_Default;
+	PrimordialType type = ParseType(&sc);
+	if(sc && scope)					FatalM("External locals not yet supported!", Line);
 	if(type == P_Undefined)			FatalM("Expected typename!", Line);
 	SymEntry* cType = NULL;
 	if((type & 0xF0) == P_Composite){
@@ -545,8 +568,9 @@ ASTNode* ParseDeclaration(){
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)	FatalM("Expected identifier!", Line);
 	const char* id = tok->value.strVal;
-	InsertVar(id, NULL, type, cType, scope);
-	if(PeekToken()->type != T_Equal)	return MakeASTNode(A_Declare, type, NULL, NULL, NULL, FlexStr(id), cType);
+	InsertVar(id, NULL, type, cType, sc, scope);
+	if (PeekToken()->type != T_Equal)
+		return MakeASTNodeEx(A_Declare, type, NULL, NULL, NULL, FlexStr(id), FlexInt(sc), cType);
 	GetToken();
 	ASTNode* expr = ParseExpression();
 	int typeCompat = CheckTypeCompatibility(type, expr->type);
@@ -561,9 +585,9 @@ ASTNode* ParseDeclaration(){
 		if(typeSize < 8) // If expression result is too large to fit in variable, truncate it
 			if(expr->value.intVal >= ((unsigned long long)1 << (8 * typeSize)))
 				expr->value.intVal &= ((unsigned long long)1 << (8 * typeSize)) - 1;
-		return MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(expr->value.intVal), cType);
+		return MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(sc), cType);
 	}
-	return MakeASTNode(A_Declare, type, expr, NULL, NULL, FlexStr(id), cType);
+	return MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(sc), cType);
 }
 
 ASTNode* ParseIfStatement(){
@@ -650,7 +674,8 @@ ASTNode* ParseBlock(){
 }
 
 ASTNode* ParseFunction(){
-	PrimordialType type = ParseType();
+	StorageClass sc = C_Default;
+	PrimordialType type = ParseType(&sc);
 	if(type == P_Undefined)					FatalM("Invalid function declaration; Expected typename.", Line);
 	SymEntry* cType = NULL;
 	if((type & 0xF0) == P_Composite){
@@ -674,7 +699,7 @@ ASTNode* ParseFunction(){
 			params = MakeParam("...", P_Void, params);
 			break;
 		}
-		PrimordialType paramType = ParseType();
+		PrimordialType paramType = ParseType(NULL);
 		if(paramType == P_Undefined)		FatalM("Invalid type in parameter list!", Line);
 		if(paramType == P_Composite && (NULL != ParseCompRef(&paramType)))
 			FatalM("Composite parameters not yet supported!", Line);
@@ -699,7 +724,7 @@ ASTNode* ParseFunction(){
 	if(params != NULL){
 		Parameter* p = params;
 		do {
-			InsertVar(p->id, NULL, p->type, NULL, scope);
+			InsertVar(p->id, NULL, p->type, NULL, sc, scope);
 			p = p->next;
 		} while( p != NULL);
 	}
@@ -793,7 +818,7 @@ ASTNode* ParseCompositeDeclaration(){
 	FlexibleValue declName = GetToken()->value;
 	ASTNode* varDecl = MakeASTLeaf(A_Declare, P_Composite, declName);
 	varDecl->cType = entry;
-	InsertVar(declName.strVal, NULL, P_Composite, entry, scope);
+	InsertVar(declName.strVal, NULL, P_Composite, entry, C_Default, scope);
 	if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon after struct declaratioin!", Line);
 	ASTNode* ret = MakeASTList(A_StructDecl, memberNodes, FlexStr(identifier));
 	ret->lhs = varDecl;
@@ -804,7 +829,7 @@ ASTNode* ParseTypedef(){
 	if(GetToken()->type != T_Typedef)	FatalM("Expected 'typedef' keyword to begin typedef!", Line);
 	Token* advCTok = PeekToken();
 	Token* advITok = PeekTokenN(1);
-	PrimordialType type = ParseType();
+	PrimordialType type = ParseType(NULL);
 	SymEntry* cType = NULL;
 	bool advDecl = false;
 	if(type == P_Composite){

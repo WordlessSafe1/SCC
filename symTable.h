@@ -29,10 +29,11 @@ static SymEntry* MakeTypedSymEntry(const char* key, PrimordialType type, SymEntr
 	return ret;
 };
 
-static SymEntry* MakeVarEntry(const char* key, const char* val, PrimordialType type, SymEntry* cType){
+static SymEntry* MakeVarEntry(const char* key, const char* val, PrimordialType type, SymEntry* cType, StorageClass sc){
 	SymEntry* ret = malloc(sizeof(SymEntry));
 	ret->key = key;
-	ret->value = FlexStr(val);
+	ret->value.strVal = val;
+	ret->sValue.intVal = sc;
 	ret->type = type;
 	ret->sType = S_Variable;
 	ret->cType = cType;
@@ -238,7 +239,7 @@ SymList* InsertEnumValue(const char* name, int value){
 	FatalM("Redeclaration of enum values is strictly forbidden!", Line);
 }
 
-SymList* InsertVar(const char* key, const char* value, PrimordialType type, SymEntry* cType, int scope){
+SymList* InsertVar(const char* key, const char* value, PrimordialType type, SymEntry* cType, StorageClass sc, int scope){
 	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
 	if(hashArray[scope] == NULL)
 		return NULL;
@@ -246,14 +247,14 @@ SymList* InsertVar(const char* key, const char* value, PrimordialType type, SymE
 	if(list == NULL){
 		varCount[scope]++;
 		stackSize[scope] += align(GetTypeSize(type, cType), 16);
-		return hashArray[scope][hash] = MakeSymList(MakeVarEntry(key, value, type, cType), NULL);
+		return hashArray[scope][hash] = MakeSymList(MakeVarEntry(key, value, type, cType, sc), NULL);
 	}
 	while((list->item->sType != S_Variable || !streq(list->item->key, key))&& list->next != NULL)
 		list = list->next;
 	if(list->item->sType != S_Variable || !streq(list->item->key, key)){
 		varCount[scope]++;
 		stackSize[scope] += align(GetTypeSize(type, cType), 16);
-		return list->next = MakeSymList(MakeVarEntry(key, value, type, cType), NULL);
+		return list->next = MakeSymList(MakeVarEntry(key, value, type, cType, sc), NULL);
 	}
 	list->item->value = FlexStr(value);
 	return list;

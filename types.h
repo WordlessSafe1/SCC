@@ -10,6 +10,7 @@
 typedef enum ePrimordialType PrimordialType;
 typedef enum eTokenCategory TokenType;
 typedef enum eNodeType NodeType;
+typedef enum eStorageClass StorageClass;
 typedef union flexible_value FlexibleValue;
 typedef struct doubly_linked_list DbLnkList;
 typedef struct param Parameter;
@@ -103,6 +104,7 @@ enum eTokenCategory {
 	T_Typedef,
 	T_Octothorp,
 	T_Ellipsis,
+	T_Extern,
 };
 
 enum eNodeType {
@@ -162,6 +164,11 @@ enum eNodeType {
 	A_StructDecl,
 	A_EnumDecl,
 	A_EnumValue,
+};
+
+enum eStorageClass{
+	C_Default	= 0,
+	C_Extern	= 0b1,
 };
 
 union flexible_value {
