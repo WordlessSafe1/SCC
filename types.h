@@ -105,6 +105,9 @@ enum eTokenCategory {
 	T_Octothorp,
 	T_Ellipsis,
 	T_Extern,
+	T_Switch,
+	T_Case,
+	T_Default,
 };
 
 enum eNodeType {
@@ -164,6 +167,9 @@ enum eNodeType {
 	A_StructDecl,
 	A_EnumDecl,
 	A_EnumValue,
+	A_Switch,
+	A_Case,
+	A_Default,
 };
 
 enum eStorageClass{

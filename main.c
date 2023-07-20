@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <ctype.h>
 #include <string.h>
 #include <math.h>
@@ -98,8 +99,8 @@ int main(int argc, char** argv){
 		curFile = inputTargets[i];
 		const char* format = "cpp.exe -nostdinc -isystem %s %s -o %s";
 		target = AlterFileExtension(inputTargets[i], "tmp_ppc");
-		int charCount = strlen(format) + strlen(incDir) + strlen(inputTargets[i]) + strlen(target);
-		char* cmd = malloc((charCount + 1) * sizeof(char));
+		int charCount = strlen(format) + strlen(incDir) + strlen(inputTargets[i]) + strlen(target) + 1;
+		char* cmd = malloc(charCount * sizeof(char));
 		snprintf(cmd, charCount, format, incDir, inputTargets[i], target);
 		if(system(cmd))		exit(1);
 		free(cmd);
@@ -265,6 +266,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 			val = buffer;
 			break;
 		}
+		case A_Case:
 		case A_LitInt:{
 			const int charCount = intlen(tree->value.intVal) + (tree->value.intVal < 0) + 1;
 			char* buffer = malloc(charCount * sizeof(char));
@@ -329,8 +331,11 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_Dereference:			name = "Dereference";		break;
 		case A_LitStr:				name = "LitString";			break;
 		case A_StructDecl:			name = "StructDecl";		break;
-		case A_EnumDecl:			name = "A_EnumDecl";		break;
-		case A_EnumValue:			name = "A_EnumValue";		break;
+		case A_EnumDecl:			name = "EnumDecl";			break;
+		case A_EnumValue:			name = "EnumValue";			break;
+		case A_Switch:				name = "Switch";			break;
+		case A_Case:				name = "Case";				break;
+		case A_Default:				name = "Default";			break;
 	}
 	const char* type = calloc(1, sizeof(char));
 	switch(tree->type & 0xF0){
@@ -374,5 +379,27 @@ char* charStr(char c, int count){
 	char* buffer = calloc(count+1, sizeof(char));
 	for(int i = 0; i < count; i++)
 		buffer[i] = c;
+	return buffer;
+}
+
+char* strjoin(const char* lhs, const char* rhs){
+	int charCount = strlen(lhs) + strlen(rhs) + 1;
+	char* buffer = malloc(charCount * sizeof(char));
+	snprintf(buffer, charCount, "%s%s", lhs, rhs);
+	return buffer;
+}
+
+char* strapp(char** lhs, const char* rhs){
+	char* buffer = strjoin(*lhs, rhs);
+	free(*lhs);
+	return *lhs = buffer;
+}
+
+char* sngenf(int bufferSize, const char* format, ...){
+	char* buffer = malloc(bufferSize);
+	va_list args;
+	va_start(args, format);
+	vsnprintf(buffer, bufferSize, format, args);
+	va_end(args);
 	return buffer;
 }

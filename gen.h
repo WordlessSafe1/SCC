@@ -74,14 +74,14 @@ static const char* GenLitInt(ASTNode* node){
 static char* GenLitStr(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op != A_LitStr)	FatalM("Expected literal String in expression!", Line);
-	const char* format = "	leaq	.L%d(%%rip),	%%rax\n";
+	const char* format = "	leaq	L%d(%%rip),	%%rax\n";
 	int charCount = strlen(format) + strlen(node->value.strVal) + (2 * intlen(lVar)) + 1;
 	char* buffer = calloc(charCount, sizeof(char));
 	snprintf(buffer, charCount, format, lVar);
 	{
 		// .data
 		const char* format =
-			".L%d:\n"
+			"L%d:\n"
 			"	.ascii \"%s\\0\"\n"
 		;
 		int charCount = strlen(format) + strlen(node->value.strVal) + intlen(lVar) + 1;
@@ -857,6 +857,82 @@ static const char* GenForLoop(ASTNode* node){
 	return str;
 }
 
+static char* GenSwitch(ASTNode* node){
+	ASTNodeList* list = node->list;
+	int childCount = list->count;
+	int* caseLabel = malloc(childCount * sizeof(int));
+	int* caseValue = malloc(childCount * sizeof(int));
+	int lJmp = lVar++;
+	int lTop = lVar++;
+	int lEnd = lVar++;
+	int lDef = lEnd;
+	int caseCount = childCount;
+	USE_SUB_SWITCH = true;
+	const char* format =
+		"%s"								// Expression ASM
+		"	jmp		L%d\n"					// lTop
+		"%s"								// Cases ASM
+		"	jmp		L%d\n"					// lEnd
+		"%s"								// Jump Table ASM
+		"L%d:\n"							// lTop
+		"	leaq	L%d(%%rip),	%%rdx\n"	// lJmp
+		"	jmp		switch\n"				// Jump to switch subroutine
+		"L%d:\n"							// lEnd
+	;
+	char* casesASM = calloc(1, sizeof(char));
+	const char* declLabelFormat =
+		"L%d:\n"
+		"	.quad	%d\n" // Count
+	;
+	char* tableASM = calloc(1, sizeof(char));
+	const char* exprAsm = GenExpressionAsm(node->lhs);
+
+
+	const char* caseFrmt = "L%d:\n" "%s";
+	const char* jmpFrmt = "	.quad	%d,	L%d\n";
+	for(int i = 0; i < childCount; i++){
+		ASTNode* inner = list->nodes[i];
+		caseLabel[i] = lVar++;
+		caseValue[i] = inner->value.intVal;
+		const char* innerASM = GenerateAsmFromList(inner->list);
+		char* caseASM = sngenf(strlen(caseFrmt) + intlen(caseLabel[i]) + strlen(innerASM) + 1, caseFrmt, caseLabel[i], innerASM);
+		strapp(&casesASM, caseASM);
+		free(caseASM);
+		if(inner->op == A_Default){
+			lDef = caseLabel[i];
+			caseCount--;
+			continue;
+		}
+		char* jmpASM = sngenf(strlen(jmpFrmt) + intlen(caseValue[i]) + intlen(caseLabel[i]) + 1, jmpFrmt, caseValue[i], caseLabel[i]);
+		strapp(&tableASM, jmpASM);
+		free(jmpASM);
+	}
+	char* tablePreASM = sngenf(strlen(declLabelFormat) + intlen(lJmp) + intlen(childCount) + 1, declLabelFormat, lJmp, childCount);
+	strapp(&tablePreASM, tableASM);
+	free(tableASM);
+	tableASM = tablePreASM;
+	const char* defFrmt = "	.quad	L%d\n";
+	char* defJmpLbl = sngenf(strlen(jmpFrmt) + intlen(lDef) + 1, defFrmt, lDef);
+	strapp(&tableASM, defJmpLbl);
+	free(defJmpLbl);
+	int charCount = 
+		strlen(format)
+		+ strlen(exprAsm)
+		+ intlen(lTop)
+		+ strlen(casesASM)
+		+ intlen(lEnd)
+		+ strlen(tableASM)
+		+ intlen(lTop)
+		+ intlen(lJmp)
+		+ intlen(lEnd)
+		+ 1
+	;
+	char* ret = sngenf(charCount, format, exprAsm, lTop, casesASM, lEnd, tableASM, lTop, lJmp, lEnd);
+	free(casesASM);
+	free(tableASM);
+	return ret;
+}
+
 static const char* GenContinue(ASTNode* node){
 	return "	jmp		8f\n";
 }
@@ -921,6 +997,7 @@ static const char* GenStatementAsm(ASTNode* node){
 		case A_Continue:	return GenContinue(node);
 		case A_Break:		return GenBreak(node);
 		case A_StructDecl:	return GenStructDecl(node);
+		case A_Switch:		return GenSwitch(node);
 		case A_EnumDecl:	return "";
 		default:			return GenExpressionAsm(node);
 	}
@@ -1037,7 +1114,32 @@ char* GenerateAsm(ASTNodeList* node){
 	data_section = calloc(1, sizeof(char));
 	bss_vars = MakeDbLnkList("", NULL, NULL);
 	char* bss_section = calloc(1, sizeof(char));
-	const char* Asm = GenerateAsmFromList(node);
+	char* Asm = _strdup(GenerateAsmFromList(node));
+	if(USE_SUB_SWITCH){
+		const char* switchPreamble =
+			"switch:\n"
+			"	pushq	%rsi\n"			// Save %rsi
+			"	movq	%rdx,	%rsi\n"	// Base of jump table => %rsi
+			"	movq	%rax,	%rbx\n"	// Expression Value => %rbx
+			"	cld\n"					// Clear direction flag
+			"	lodsq\n"				// Case Count => %rax AND increment %rsi
+			"	movq	%rax,	%rcx\n"	// Case Count => %rcx
+			"1:\n"						// Start of loop
+			"	lodsq\n"				// Case Value => %rax
+			"	movq	%rax,	%rdx\n"	// Case Value => %rdx
+			"	lodsq\n"				// Case Label => %rax
+			"	cmpq	%rdx,	%rbx\n"	// Case Value <=> Expression Value
+			"	jne		2f\n"			// If != jmp forward to 2
+			"	popq	%rsi\n"			// Restore %rsi
+			"	jmp		*%rax\n"		// Jump to label
+			"2:\n"						// End of loop
+			"	loop	1b\n"			// If %rcx != 0, jmp back to 1
+			"	lodsq\n"				// Cases Exhausted, Default Label => %rax
+			"	popq	%rsi\n"			// Restore %rsi
+			"	jmp		*%rax\n"		// Jump to default
+		;
+		strapp(&Asm, switchPreamble);
+	}
 	int dslen = strlen(data_section);
 	if(dslen){
 		const char* format =
@@ -1080,5 +1182,6 @@ char* GenerateAsm(ASTNodeList* node){
 	data_section = realloc(data_section, dslen + strlen(Asm) + 1);
 	char* buffer = malloc(dslen + strlen(Asm) + strlen(format) + strlen(bss_section) + 1);
 	snprintf(buffer, dslen + strlen(Asm) + strlen(format) + strlen(bss_section) + 1, format, data_section, bss_section, Asm);
+	free(Asm);
 	return buffer;
 }

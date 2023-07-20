@@ -645,6 +645,62 @@ ASTNode* ParseForLoop(){
 	return MakeASTBinary(A_For, P_Undefined, header, stmt, FlexNULL());
 }
 
+ASTNode* ParseSwitch(){
+	if(GetToken()->type != T_Switch)		FatalM("Expected 'switch' keyword to begin switch statement!", Line);
+	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in switch statement!", Line);
+	ASTNode* expr = ParseExpression();
+	int typeCompat = CheckTypeCompatibility(expr->type, P_Int);
+	if(typeCompat == TYPES_INCOMPATIBLE || typeCompat == TYPES_WIDEN_RHS)
+		FatalM("Incompatible expression type in switch statement! Expression must be of integral type!", Line);
+	if(expr == NULL)						FatalM("Expected expression in switch statement!", Line);
+	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in switch statement!", Line);
+	if(GetToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' to denote body of switch statement!", Line);
+	ASTNodeList* cases = MakeASTNodeList();
+	int caseCount = 0;
+	switchDepth++;
+	while(PeekToken()->type != T_CloseBrace){
+		int* caseValue = NULL;
+		int op = A_Undefined;
+		switch(GetToken()->type){
+			case T_Case:{
+				ASTNode* caseValExpr = ParseExpression();
+				if(caseValExpr->op != A_LitInt)				FatalM("Case condition must be a literal integer!", Line);
+				caseValue = malloc(sizeof(int));
+				*caseValue = caseValExpr->value.intVal;
+				op = A_Case;
+				for(int i = 0; i < cases->count; i++){
+					ASTNode* node = cases->nodes[i];
+					if(node->op != A_Case)					continue;
+					if(node->value.intVal == *caseValue)	FatalM("Duplicate case labels are not permitted in switch statement!", Line);
+				}
+				break;
+			}
+			case T_Default:{
+				op = A_Default;
+				break;
+			}
+			default:						FatalM("Expected either 'case' or 'default' in switch statement!", Line);
+		}
+		if(GetToken()->type != T_Colon)		FatalM("Expected colon ':' following case!", Line);
+		Token* tok = PeekToken();
+		ASTNodeList* caseActions = MakeASTNodeList();
+		while(tok->type != T_Case && tok->type != T_Default && tok->type != T_CloseBrace){
+			ASTNode* stmt = ParseStatement();
+			if(stmt->op == A_Declare)		FatalM("Declarations not allowed directly in switches! Use a compound statement!", Line);
+			AddNodeToASTList(caseActions, stmt);
+			tok = PeekToken();
+		}
+		AddNodeToASTList(cases, MakeASTList(op, caseActions, caseValue ? FlexInt(*caseValue) : FlexNULL()));
+		if(caseValue != NULL)
+			free(caseValue);
+	}
+	switchDepth--;
+	if(GetToken()->type != T_CloseBrace)	FatalM("Expected close brace '}' after switch statement!", Line);
+	ASTNode* switchNode = MakeASTList(A_Switch, cases, FlexNULL());
+	switchNode->lhs = expr;
+	return switchNode;
+}
+
 ASTNode* ParseStatement(){
 	Token* tok = PeekToken();
 	switch(tok->type){
@@ -656,6 +712,7 @@ ASTNode* ParseStatement(){
 		case T_Do:			return ParseDoLoop();
 		case T_Continue:	GetToken(); return MakeASTLeaf(A_Continue, P_Undefined, FlexNULL());
 		case T_Break:		GetToken(); return MakeASTLeaf(A_Break, P_Undefined, FlexNULL());
+		case T_Switch:		return ParseSwitch();
 		default:			break;
 	}
 	ASTNode* expr = (PeekType() == P_Undefined) ? ParseExpression() : ParseDeclaration();
