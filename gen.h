@@ -12,6 +12,11 @@ static const char* GenExpressionAsm(ASTNode* node);
 static const char* GenStatementAsm(ASTNode* node);
 static const char* GenerateAsmFromList(ASTNodeList* list);
 
+struct {
+	int lbreak;
+	int lcontinue;
+} labels;
+
 
 static char* CalculateParamPosition(int n){
 	if(n > 3){
@@ -25,8 +30,8 @@ static char* CalculateParamPosition(int n){
 	switch(n){
 		case 0:		loc = "%rcx";	break;
 		case 1:		loc = "%rdx";	break;
-		case 2:		loc = "%r8";		break;
-		case 3:		loc = "%r9";		break;
+		case 2:		loc = "%r8";	break;
+		case 3:		loc = "%r9";	break;
 	}
 	char* buffer = calloc((strlen(loc) + 1), sizeof(char));
 	strncpy(buffer, loc, strlen(loc) + 1);
@@ -755,24 +760,30 @@ static const char* GenWhileLoop(ASTNode* node){
 	if(node == NULL)							FatalM("Expected an AST Node, got NULL instead", Line);
 	if(node->op != A_While && node->op != A_Do)	FatalM("Expected While or Do-While loop!", Line);
 	const char* condition	= GenExpressionAsm(node->lhs);
+	int localLabelPref = labelPref++;
+	int lbreak =	labels.lbreak;
+	int lcontinue =	labels.lcontinue;
+	labels.lbreak		= (localLabelPref * 10) + 9;
+	labels.lcontinue	= (localLabelPref * 10) + 8;
 	const char* action		= GenStatementAsm(node->rhs);
+	labels.lbreak		= lbreak;
+	labels.lcontinue	= lcontinue;
 	char* buffer;
-	labelPref++;
 	if(node->op == A_Do){
 		const char* format =
 			"%d0:\n"
 			"0:\n"
 			"%s"						// Action
-			"8:\n"
+			"%d8:\n"
 			"%s"						// Condition
 			"	cmp		$0,		%%rax\n"
 			"	jne		%d0b\n"
 			"%d9:\n"
 			"9:\n"
 		;
-		int charCount = strlen(condition) + strlen(action) + strlen(format) + (3 * intlen(labelPref)) + 1;
+		int charCount = strlen(condition) + strlen(action) + strlen(format) + (4 * intlen(localLabelPref)) + 1;
 		buffer = malloc(charCount * sizeof(char));
-		snprintf(buffer, charCount, format, labelPref, action, condition, labelPref, labelPref);
+		snprintf(buffer, charCount, format, localLabelPref, action, localLabelPref, condition, localLabelPref, localLabelPref);
 		return buffer;
 	}
 	const char* format = 
@@ -782,14 +793,14 @@ static const char* GenWhileLoop(ASTNode* node){
 		"	cmp		$0,		%%rax\n"
 		"	je		%d9f\n"
 		"%s"						// Action
-		"8:\n"
+		"%d8:\n"
 		"	jmp		%d0b\n"
 		"%d9:\n"
 		"9:\n"
 	;
-	int charCount = strlen(condition) + strlen(action) + strlen(format) + (4 * intlen(labelPref)) + 1;
+	int charCount = strlen(condition) + strlen(action) + strlen(format) + (5 * intlen(localLabelPref)) + 1;
 	buffer = malloc(charCount * sizeof(char));
-	snprintf(buffer, charCount, format, labelPref, condition, labelPref, action, labelPref, labelPref);
+	snprintf(buffer, charCount, format, localLabelPref, condition, localLabelPref, action, localLabelPref, localLabelPref, localLabelPref);
 	return buffer;
 }
 
@@ -802,8 +813,16 @@ static const char* GenForLoop(ASTNode* node){
 	if(node->lhs->lhs == NULL)					initializer = "";
 	else if(node->lhs->lhs->op == A_Declare)	initializer = GenDeclaration(node->lhs->lhs);
 	else										initializer = GenExpressionAsm(node->lhs->lhs);
+	const char* condition	= node->lhs->mid == NULL ? NULL : GenExpressionAsm(node->lhs->mid);
 	const char* modifier	= node->lhs->rhs == NULL ? "" : GenExpressionAsm(node->lhs->rhs);
-	const char* action		= GenStatementAsm(node->rhs);
+	int lbreak			= labels.lbreak;
+	int lcontinue		= labels.lcontinue;
+	int localLabelPref	= labelPref++;
+	labels.lbreak		= (localLabelPref * 10) + 9;
+	labels.lcontinue	= localLabelPref * 10;
+	const char* action	= GenStatementAsm(node->rhs);
+	labels.lbreak		= lbreak;
+	labels.lcontinue	= lcontinue;
 	const char* format =
 		"%s"				// Allocate Stack Space for vars
 		"%s"				// Initializer
@@ -818,7 +837,6 @@ static const char* GenForLoop(ASTNode* node){
 		"9:\n"
 		"%s"				// Deallocate Stack Space for vars
 	;
-	const char* condition	= node->lhs->mid == NULL ? NULL : GenExpressionAsm(node->lhs->mid);
 	// Beyond this point, don't generate any more ASM using other functions
 	int stackSize = GetLocalVarCount(scope) * 8;
 	char* stackAlloc = malloc(1 * sizeof(char));
@@ -836,7 +854,6 @@ static const char* GenForLoop(ASTNode* node){
 		stackDealloc = malloc(len * sizeof(char));
 		snprintf(stackDealloc, len, format, stackSize);
 	}
-	labelPref++;
 	if(condition != NULL){
 		const char* condCheck = 
 			"%s"
@@ -845,12 +862,12 @@ static const char* GenForLoop(ASTNode* node){
 		;
 		int charCount = strlen(condCheck) + strlen(condition);
 		char* buffer = malloc(charCount * sizeof(char));
-		snprintf(buffer, charCount, condCheck, condition, labelPref);
+		snprintf(buffer, charCount, condCheck, condition, localLabelPref);
 		condition = buffer;
 	}
-	int charCount = strlen(stackAlloc) + strlen(initializer) + strlen(modifier) + strlen(format) + strlen(condition) + strlen(action) + (3 * intlen(labelPref)) + strlen(stackDealloc) + 1;
+	int charCount = strlen(stackAlloc) + strlen(initializer) + strlen(modifier) + strlen(format) + strlen(condition) + strlen(action) + (3 * intlen(localLabelPref)) + strlen(stackDealloc) + 1;
 	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, format, stackAlloc, initializer, labelPref, condition, action, modifier, labelPref, labelPref, stackDealloc);
+	snprintf(str, charCount, format, stackAlloc, initializer, localLabelPref, condition, action, modifier, localLabelPref, localLabelPref, stackDealloc);
 	free((void*)condition);
 	free(stackAlloc);
 	ExitScope();
@@ -878,6 +895,7 @@ static char* GenSwitch(ASTNode* node){
 		"	leaq	L%d(%%rip),	%%rdx\n"	// lJmp
 		"	jmp		switch\n"				// Jump to switch subroutine
 		"L%d:\n"							// lEnd
+		"%d9:\n"							// labelpref
 	;
 	char* casesASM = calloc(1, sizeof(char));
 	const char* declLabelFormat =
@@ -887,7 +905,9 @@ static char* GenSwitch(ASTNode* node){
 	char* tableASM = calloc(1, sizeof(char));
 	const char* exprAsm = GenExpressionAsm(node->lhs);
 
-
+	int localLabelPref = labelPref++;
+	int lbreak = labels.lbreak;
+	labels.lbreak = (localLabelPref * 10) + 9;
 	const char* caseFrmt = "L%d:\n" "%s";
 	const char* jmpFrmt = "	.quad	%d,	L%d\n";
 	for(int i = 0; i < childCount; i++){
@@ -907,6 +927,7 @@ static char* GenSwitch(ASTNode* node){
 		strapp(&tableASM, jmpASM);
 		free(jmpASM);
 	}
+	labels.lbreak = lbreak;
 	char* tablePreASM = sngenf(strlen(declLabelFormat) + intlen(lJmp) + intlen(childCount) + 1, declLabelFormat, lJmp, childCount);
 	strapp(&tablePreASM, tableASM);
 	free(tableASM);
@@ -925,20 +946,23 @@ static char* GenSwitch(ASTNode* node){
 		+ intlen(lTop)
 		+ intlen(lJmp)
 		+ intlen(lEnd)
+		+ intlen(localLabelPref)
 		+ 1
 	;
-	char* ret = sngenf(charCount, format, exprAsm, lTop, casesASM, lEnd, tableASM, lTop, lJmp, lEnd);
+	char* ret = sngenf(charCount, format, exprAsm, lTop, casesASM, lEnd, tableASM, lTop, lJmp, lEnd, localLabelPref);
 	free(casesASM);
 	free(tableASM);
 	return ret;
 }
 
 static const char* GenContinue(ASTNode* node){
-	return "	jmp		8f\n";
+	const char* format = "jmp		%df\n";
+	return sngenf(strlen(format) + intlen(labels.lcontinue) + 1, format, labels.lcontinue);
 }
 
-static const char* GenBreak(ASTNode* node){
-	return "	jmp		9f\n";
+static char* GenBreak(ASTNode* node){
+	const char* format = "jmp		%df\n";
+	return sngenf(strlen(format) + intlen(labels.lbreak) + 1, format, labels.lbreak);
 }
 
 static const char* GenBlockAsm(ASTNode* node){
@@ -1115,6 +1139,8 @@ char* GenerateAsm(ASTNodeList* node){
 	bss_vars = MakeDbLnkList("", NULL, NULL);
 	char* bss_section = calloc(1, sizeof(char));
 	char* Asm = _strdup(GenerateAsmFromList(node));
+	labels.lbreak = -1;
+	labels.lcontinue = -1;
 	if(USE_SUB_SWITCH){
 		const char* switchPreamble =
 			"switch:\n"
