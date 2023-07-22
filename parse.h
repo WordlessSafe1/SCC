@@ -696,6 +696,10 @@ ASTNode* ParseSwitch(){
 	}
 	switchDepth--;
 	if(GetToken()->type != T_CloseBrace)	FatalM("Expected close brace '}' after switch statement!", Line);
+	if(cases->count == 0){
+		WarnM("No cases provided to switch!", Line);
+		return expr;
+	}
 	ASTNode* switchNode = MakeASTList(A_Switch, cases, FlexNULL());
 	switchNode->lhs = expr;
 	return switchNode;

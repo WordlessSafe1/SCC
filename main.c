@@ -211,7 +211,7 @@ void FatalM(const char* msg, int line){
 void WarnM(const char* msg, int line){
 	if(noWarn)	return;
 	if(line == NOLINE)	printf("Warning:\n\t%s\n", msg);
-	else				printf("Warning - on ln %d:\n\t%s\n", line, msg);
+	else				printf("Warning - on ln %d in %s:\n\t%s\n", line, curFile, msg);
 }
 
 char* DumpASTTree(ASTNode* tree, int depth){
