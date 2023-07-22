@@ -306,17 +306,20 @@ ASTNode* MakeASTList(int op, ASTNodeList* list, FlexibleValue value){
 }
 
 FlexibleValue FlexStr(const char* str){
-	FlexibleValue f = { .strVal = str };
+	FlexibleValue f;
+	f.strVal = str;
 	return f;
 }
 
 FlexibleValue FlexInt(int num){
-	FlexibleValue f = { .intVal = num };
+	FlexibleValue f;
+	f.intVal = num;
 	return f;
 }
 
 FlexibleValue FlexPtr(void* ptr){
-	FlexibleValue f = { .ptrVal = ptr };
+	FlexibleValue f;
+	f.ptrVal = ptr;
 	return f;
 }
 

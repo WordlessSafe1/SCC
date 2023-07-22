@@ -956,11 +956,13 @@ static char* GenSwitch(ASTNode* node){
 }
 
 static const char* GenContinue(ASTNode* node){
+	if(labels.lcontinue == -1)	FatalM("A 'continue' statement may only be used inside of a loop!", Line);
 	const char* format = "jmp		%df\n";
 	return sngenf(strlen(format) + intlen(labels.lcontinue) + 1, format, labels.lcontinue);
 }
 
 static char* GenBreak(ASTNode* node){
+	if(labels.lbreak == -1)		FatalM("A 'break' statement may only be used inside of a switch or loop!", Line);
 	const char* format = "jmp		%df\n";
 	return sngenf(strlen(format) + intlen(labels.lbreak) + 1, format, labels.lbreak);
 }
@@ -1135,12 +1137,12 @@ static const char* GenerateAsmFromList(ASTNodeList* list){
 }
 
 char* GenerateAsm(ASTNodeList* node){
+	labels.lbreak = -1;
+	labels.lcontinue = -1;
 	data_section = calloc(1, sizeof(char));
 	bss_vars = MakeDbLnkList("", NULL, NULL);
 	char* bss_section = calloc(1, sizeof(char));
 	char* Asm = _strdup(GenerateAsmFromList(node));
-	labels.lbreak = -1;
-	labels.lcontinue = -1;
 	if(USE_SUB_SWITCH){
 		const char* switchPreamble =
 			"switch:\n"

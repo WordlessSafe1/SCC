@@ -21,18 +21,6 @@
 
 #include "globals.h"
 
-char* TokenTypeNames[] = {
-	"Undefined",
-	"Type",
-	"Identifier",
-	"OpenParen",
-	"CloseParen",
-	"OpenBrace",
-	"CloseBrace",
-	"Return",
-	"Semicolon",
-	"LitInt",
-};
 char* AlterFileExtension(const char* filename, const char* extension);
 char* DumpASTTree(ASTNode* tree, int depth);
 char* charStr(char c, int count);
