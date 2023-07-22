@@ -170,6 +170,7 @@ enum eNodeType {
 	A_Switch,
 	A_Case,
 	A_Default,
+	A_Cast,
 };
 
 enum eStorageClass{
@@ -353,6 +354,15 @@ int GetTypeSize(PrimordialType type, SymEntry* compositeType){
 
 bool IsPointer(PrimordialType prim){
 	return (prim & 0x0F) != 0;
+}
+
+bool IsIntegral(PrimordialType type){
+	switch(type){
+		case P_Char:	return true;
+		case P_Int:		return true;
+		case P_Long:	return true;
+		default:		return false;
+	}
 }
 
 int CheckTypeCompatibility(PrimordialType lhs, PrimordialType rhs){

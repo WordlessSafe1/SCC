@@ -10,6 +10,7 @@
 <block>					::= '{' [ <block_item> ] '}'
 <declaration>			::= <type> <id> [ '=' <expression> ] ';'
 <statement>				::= <block> | <return_statement> | <if_statement> | <control_statement> | [ <expression> ] ';'
+<switch_statememt>		::= "switch" '(' <expression> ')' '{' { ( "case" | "default" ) ':' { <statement> } } '}'
 <control_statement>		::= ( "break" | "continue" ) ';'
 <if_statement>			::= "if" '(' <expression> ')' <statement> [ "else" <statement> ]
 <loop>					::= <while_loop> | <do_loop> | <for_loop>
@@ -30,12 +31,13 @@
 <bit_shift_expr>		::= <additive_expr> { ( "<<" | ">>" ) <additive_expr> }
 <additive_expr>			::= <term> { ( '+' | '-' ) <term> }
 <term>					::= <factor> { ( '*' | '/' | '%' ) <factor> }
-<factor>				::= <base> | <unary_op> <factor> | ( "++" | "--" ) <id> | <id> ( "++" | "--" )
+<factor>				::= <base> | <unary_op> <factor> | '(' <type> ')' <factor>
+							| ( "++" | "--" ) <id> | <id> ( "++" | "--" ) 
 <base>					::= <id> | <function_call> | <id> '[' <expression> ']' | <character_literal>
 							| <base> "->" <id> | <factor> '.' <id> | <string_literal> | <int>
 <function_call>			::= <id> '(' [ <expression> { ',' <expression> } ] ')'
-
-<type>					::= <type> '*' | "void" | "char" | "int" | "long"
+<cast>					::= 
+<type>					::= <type> '*' | "void" | "char" | "int" | "long" | ( "struct" | "union" | "enum" ) <id> | <id> # <id> WHERE id is prior typedef
 <unary_op>				::= '~' | '!' | '-' | '*' | '&'
 <compound_assign_op>	::= '+' | '-' | '*' | '/' | '%' | "<<" | ">>" | '&' | '^' | '|'
 

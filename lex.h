@@ -263,10 +263,12 @@ Token* PeekToken(){
 	fpos_t* fpos = malloc(sizeof(fpos_t));
 	fgetpos(fptr, fpos);
 	int ln = Line;
+	const char* file = curFile;
 	const char* str = ShiftToken();
+	curFile = file;
+	Line = ln;
 	fsetpos(fptr, fpos);
 	free(fpos);
-	Line = ln;
 	if(str == NULL)	return NULL;
 	return Tokenize(str);
 }

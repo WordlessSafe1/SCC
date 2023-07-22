@@ -60,43 +60,22 @@ PrimordialType ParseType(StorageClass* sc){
 	return type;
 }
 
-extern PrimordialType PeekType(){
-	PrimordialType type;
-	int i = 1;
-	Token* tok = PeekToken();
-	switch(tok->type){
-		case T_Extern:	GetToken();	break;
-		default:		break;
-	}
-	tok = PeekToken();
-	switch(tok->type){
-		case T_Extern:	FatalM("Cannot use more than one storage class!", Line);
-		default:		break;
-	}
-	switch(tok->type){
-		case T_Identifier: {
-			SymEntry* tdef = FindGlobal(tok->value.strVal, S_Typedef);
-			if (tdef == NULL){
-				return P_Undefined;
-			}
-			if (tdef->type == P_Composite)	return P_Composite;
-			type = tdef->type;
+PrimordialType PeekTypeN(int n){
+	for(int i = 0; i < n; i++)
+		if(ShiftToken() == NULL)
 			break;
-		}
-		case T_Int:		type = P_Int;		break;
-		case T_Char:	type = P_Char;		break;
-		case T_Void:	type = P_Void;		break;
-		case T_Long:	type = P_Long;		break;
-		case T_Enum:	type = P_Int; i++;	break;
-		case T_Union:
-		case T_Struct:	return P_Composite;	// Structs must be parsed with ParseCompRef()
-		default:		return P_Undefined;
-	}
-	while(PeekTokenN(i++)->type == T_Asterisk){
-		if((type & 0xF) == 0xF)	FatalM("Indirection limit exceeded!", Line);
-		type++;
-	}
-	return type;
+	fpos_t* fpos = malloc(sizeof(fpos_t));
+	int ln = Line;
+	fgetpos(fptr, fpos);
+	PrimordialType t = ParseType(NULL);
+	fsetpos(fptr, fpos);
+	free(fpos);
+	Line = ln;
+	return t;
+}
+
+PrimordialType PeekType(){
+	return PeekTypeN(0);
 }
 
 /// @brief Parse a composite reference.
@@ -311,6 +290,35 @@ ASTNode* ParseFactor(){
 			if(t == P_Undefined)		FatalM("Expression type not determined!", Line);
 			if(!(t & 0xF))				FatalM("Can't dereference a non-pointer!", Line);
 			return MakeASTNode(A_Dereference,	fctr->type - 1,	fctr,	NULL,	NULL,	FlexNULL(), fctr->cType);
+		}
+		case T_OpenParen:{
+			fpos_t* fpos = malloc(sizeof(fpos_t));
+			fgetpos(fptr, fpos);
+			int ln = Line;
+			const char* file = curFile;
+			GetToken();
+			PrimordialType type = ParseType(NULL);
+			bool failed = type == P_Undefined;
+			while(!failed){
+				SymEntry* cType = (type == P_Composite) ? ParseCompRef(&type) : NULL;
+				if(GetToken()->type != T_CloseParen) {	failed = true;	break; }
+				ASTNode* expr = ParseExpression();
+				if(expr == NULL)		FatalM("Got NULL instead of expression! (Internal @ parse.h)", __LINE__);
+				// Still need to handle narrowing manually... :'(
+				if(expr->op == A_LitInt){
+					size_t maxValue = (size_t)~0 >> 8 * (sizeof(size_t) - GetTypeSize(type, cType));
+					if(expr->value.intVal > maxValue)
+						expr->value.intVal &= maxValue;
+					return expr;
+				}
+				return MakeASTNode(A_Cast, type, expr, NULL, NULL, FlexNULL(), cType);
+			}
+			if(failed){
+				curFile = file;
+				Line = ln;
+				fsetpos(fptr, fpos);
+				free(fpos);
+			}
 		}
 		default:	return ParseBase();
 	}

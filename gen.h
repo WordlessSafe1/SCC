@@ -229,6 +229,18 @@ static char* GenDereference(ASTNode* node){
 	return buffer;
 }
 
+static char* GenCast(ASTNode* node){
+	const char* format = NULL;
+	switch(GetTypeSize(node->type, node->cType)){
+		case 1:		format = "%s	movzbq	%%al,	%%rax\n";	break;
+		case 4:		format = "%s	movslq	%%eax,	%%rax\n";	break;
+		case 8:		format = "%s	movq	%%rax,	%%rax\n";	break;
+		default:	FatalM("Unhandled cast type size! (Internal @ gen.h)", __LINE__);
+	}
+	const char* expr = GenExpressionAsm(node->lhs);
+	return sngenf(strlen(expr) + strlen(format) + 1, format, expr);
+}
+
 static const char* GenUnary(ASTNode* node){
 	if(node->lhs == NULL)	FatalM("Expected expression after unary operator!", Line);
 	const char* instr = NULL;
@@ -582,6 +594,7 @@ static const char* GenExpressionAsm(ASTNode* node){
 		case A_FunctionCall:		return GenFuncCall(node);
 		case A_Dereference:			return GenDereference(node);
 		case A_AddressOf:			return GenAddressOf(node);
+		case A_Cast:				return GenCast(node);
 		// Compound Assignment
 		case A_AssignSum:
 		case A_AssignDifference:
