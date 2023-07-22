@@ -928,7 +928,7 @@ static char* GenSwitch(ASTNode* node){
 		free(jmpASM);
 	}
 	labels.lbreak = lbreak;
-	char* tablePreASM = sngenf(strlen(declLabelFormat) + intlen(lJmp) + intlen(childCount) + 1, declLabelFormat, lJmp, childCount);
+	char* tablePreASM = sngenf(strlen(declLabelFormat) + intlen(lJmp) + intlen(caseCount) + 1, declLabelFormat, lJmp, caseCount);
 	strapp(&tablePreASM, tableASM);
 	free(tableASM);
 	tableASM = tablePreASM;
