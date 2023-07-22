@@ -291,6 +291,15 @@ ASTNode* ParseFactor(){
 			if(!(t & 0xF))				FatalM("Can't dereference a non-pointer!", Line);
 			return MakeASTNode(A_Dereference,	fctr->type - 1,	fctr,	NULL,	NULL,	FlexNULL(), fctr->cType);
 		}
+		case T_Sizeof:{
+			GetToken();
+			if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis after 'sizeof'!", Line);
+			PrimordialType type = ParseType(NULL);
+			if(type == P_Undefined)					FatalM("Expected typename!", Line);
+			SymEntry* cType = (type == P_Composite) ? ParseCompRef(&type) : NULL;
+			if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis after 'sizeof'!", Line);
+			return MakeASTLeaf(A_LitInt, P_Char, FlexInt(GetTypeSize(type, cType)));
+		}
 		case T_OpenParen:{
 			fpos_t* fpos = malloc(sizeof(fpos_t));
 			fgetpos(fptr, fpos);
@@ -319,6 +328,7 @@ ASTNode* ParseFactor(){
 				fsetpos(fptr, fpos);
 				free(fpos);
 			}
+			// FALL THROUGH
 		}
 		default:	return ParseBase();
 	}

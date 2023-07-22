@@ -84,6 +84,7 @@ static Token* Tokenize(const char* str){
 		else if(streq(str, "switch"))	token->type = T_Switch;
 		else if(streq(str, "case"))		token->type = T_Case;
 		else if(streq(str, "default"))	token->type = T_Default;
+		else if(streq(str, "sizeof"))	token->type = T_Sizeof;
 		else if(isdigit(str[0])){
 			token->type = T_LitInt;
 			token->value.intVal = atol(str);

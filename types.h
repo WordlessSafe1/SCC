@@ -108,6 +108,7 @@ enum eTokenCategory {
 	T_Switch,
 	T_Case,
 	T_Default,
+	T_Sizeof,
 };
 
 enum eNodeType {
