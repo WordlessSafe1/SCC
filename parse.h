@@ -663,6 +663,7 @@ ASTNode* ParseSwitch(){
 	if(GetToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' to denote body of switch statement!", Line);
 	ASTNodeList* cases = MakeASTNodeList();
 	switchDepth++;
+	bool seenDefault = false;
 	while(PeekToken()->type != T_CloseBrace){
 		int* caseValue = NULL;
 		int op = A_Undefined;
@@ -681,7 +682,9 @@ ASTNode* ParseSwitch(){
 				break;
 			}
 			case T_Default:{
+				if(seenDefault)		FatalM("Multiple 'default' cases in switch statement!", Line);
 				op = A_Default;
+				seenDefault = true;
 				break;
 			}
 			default:						FatalM("Expected either 'case' or 'default' in switch statement!", Line);
