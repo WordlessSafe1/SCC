@@ -233,6 +233,7 @@ static char* GenCast(ASTNode* node){
 	const char* format = NULL;
 	switch(GetTypeSize(node->type, node->cType)){
 		case 1:		format = "%s	movzbq	%%al,	%%rax\n";	break;
+		case 2:		format = "%s	movzwq	%%ax,	%%rax\n";	break;
 		case 4:		format = "%s	movslq	%%eax,	%%rax\n";	break;
 		case 8:		format = "%s	movq	%%rax,	%%rax\n";	break;
 		default:	FatalM("Unhandled cast type size! (Internal @ gen.h)", __LINE__);
