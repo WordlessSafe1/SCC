@@ -1,11 +1,11 @@
 <comment>				::= "//" { <letter> | <digit> | <symbol> | ' ' | '\t' }
-<program>				::= { <function> | <declaration> | <struct_declaration> | <union_declaration> | <enum_declaration> | <typedef> }
+<program>				::= { <function> | [ <storage_class> ] <declaration> | <struct_declaration> | <union_declaration> | <enum_declaration> | <typedef> }
 <typedef>				::= "typedef" [ "union" | "struct" | "enum" ] <id> { '*' } [ <id> ] ';'
 <union_declaration>		::= "union" <id> '{' <declaration> { <declaration> } '}' ';'
 <struct_declaration>	::= "struct" <id> '{' <declaration> { <declaration> } '}' ';'
 <enum_declaration>		::= "enum" [ <id> ] '{' [ <enum_value> { ',' <enum_value> } ] [ ',' ] '}'
 <enum_value>			::= <id> [ '=' ( <int> | <character_literal> ) ]
-<function>				::= <type> <id> "(" [ <type> <id> { ',' <type> <id> } ] ")" ( <block> | ';' )
+<function>				::= [ <storage_class> ] <type> <id> "(" [ <type> <id> { ',' <type> <id> } ] ")" ( <block> | ';' )
 <block_item>			::= <statement> | <declaration>
 <block>					::= '{' [ <block_item> ] '}'
 <declaration>			::= <type> <id> [ '=' <expression> ] ';'
@@ -36,7 +36,7 @@
 <base>					::= <id> | <function_call> | <id> '[' <expression> ']' | <character_literal>
 							| <base> "->" <id> | <factor> '.' <id> | <string_literal> | <int>
 <function_call>			::= <id> '(' [ <expression> { ',' <expression> } ] ')'
-<cast>					::= 
+<storage_class>			::= "extern" | "static"
 <type>					::= <type> '*' | "void" | "char" | "int" | "long" | ( "struct" | "union" | "enum" ) <id> | <id> # <id> WHERE id is prior typedef
 <unary_op>				::= '~' | '!' | '-' | '*' | '&'
 <compound_assign_op>	::= '+' | '-' | '*' | '/' | '%' | "<<" | ">>" | '&' | '^' | '|'

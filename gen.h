@@ -723,7 +723,7 @@ static char* GenDeclaration(ASTNode* node){
 		// int a; extern int a;
 		// is treated the same as 
 		// extern int a;
-		if(node->secondaryValue.intVal == C_Extern)
+		if(node->sClass == C_Extern)
 			return calloc(1, sizeof(char));
 		if(node->lhs == NULL){
 			DbLnkList* bss = MakeDbLnkList((void*)id, NULL, bss_vars);
@@ -733,16 +733,24 @@ static char* GenDeclaration(ASTNode* node){
 		}
 		if (node->lhs->op != A_LitInt)
 			FatalM("Non-constant expression used in global variable declaration!", Line);
-		const char* format =
-			"	.globl %s\n"
-			"%s:\n"
-			"	.quad	%d\n"
-		;
+		const char* format = NULL;
+		if(node->sClass == C_Static){
+			switch(GetTypeSize(node->type, node->cType)){
+				case 1:		format = "%s:\n	.byte	%d\n"; break;
+				case 4:		format = "%s:\n	.long	%d\n"; break;
+				case 8:		format = "%s:\n	.quad	%d\n"; break;
+				default:	FatalM("Unsupported type size! (Internal @ gen.h)", __LINE__);
+			}
+			char* buffer = sngenf(strlen(format) + strlen(id) + intlen(node->lhs->value.intVal) + 1, format, id, node->lhs->value.intVal);
+			strapp(&data_section, buffer);
+			free(buffer);
+			return calloc(1, sizeof(char));
+		}
 		switch(GetTypeSize(node->type, node->cType)){
 			case 1:		format = "	.globl %s\n%s:\n	.byte	%d\n"; break;
 			case 4:		format = "	.globl %s\n%s:\n	.long	%d\n"; break;
 			case 8:		format = "	.globl %s\n%s:\n	.quad	%d\n"; break;
-			default:	break;
+			default:	FatalM("Unsupported type size! (Internal @ gen.h)", __LINE__);
 		}
 		const int charCount = strlen(format) + (2 * strlen(id)) + intlen(node->lhs->value.intVal) + 1;
 		char* buffer = malloc(charCount * sizeof(char));
@@ -1059,8 +1067,14 @@ static const char* GenFunctionAsm(ASTNode* node){
 	}
 	if(paramCount)
 		EnterScope();
+	char* globl = calloc(1, sizeof(char));
+	if(node->sClass != C_Static){
+		free(globl);
+		const char* format = "	.globl	%s\n";
+		globl = sngenf(strlen(format) + strlen(node->value.strVal) + 1, format, node->value.strVal);
+	}
 	const char* format = 
-		"	.globl %s\n"			// Identifier
+		"%s"						// Global Identifier (If applicable)
 		"%s:\n"						// Identifier
 		"	push	%%rbp\n"
 		"	movq	%%rsp,	%%rbp\n"
@@ -1113,7 +1127,8 @@ static const char* GenFunctionAsm(ASTNode* node){
 	}
 	const char* statementAsm = GenBlockAsm(node->lhs);
 	int charCount =
-		(2 * strlen(node->value.strVal))	// identifier x2
+		strlen(globl)						// Global Identifier
+		+ strlen(node->value.strVal)		// Identifier
 		+ strlen(stackAlloc)				// Stack Allocation ASM
 		+ strlen(paramPlacement)			// Parameter Placement ASM
 		+ strlen(statementAsm)				// Inner ASM
@@ -1122,9 +1137,12 @@ static const char* GenFunctionAsm(ASTNode* node){
 		+ 1									// \0
 	;
 	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, format, node->value.strVal, node->value.strVal, stackAlloc, paramPlacement, statementAsm, stackDealloc);
+	snprintf(str, charCount, format, globl, node->value.strVal, stackAlloc, paramPlacement, statementAsm, stackDealloc);
 	free(paramPlacement);
 	free(stackAlloc);
+	if(node->sClass != C_Static){
+		free(globl);
+	}
 	if(paramCount)
 		ExitScope();
 	return str;

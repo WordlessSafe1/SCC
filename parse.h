@@ -25,11 +25,13 @@ PrimordialType ParseType(StorageClass* sc){
 	// If SC is NULL, then storage classes are not supported; Parsing should be skipped in order to force a fail later on.
 	if(sc != NULL){
 		switch(tok->type){
+			case T_Static:	GetToken(); *sc = C_Static;	break;
 			case T_Extern:	GetToken();	*sc = C_Extern;	break;
 			default:		break;
 		}
 		tok = PeekToken();
 		switch(tok->type){
+			case T_Static:
 			case T_Extern:	FatalM("Cannot use more than one storage class!", Line);
 			default:		break;
 		}
@@ -588,8 +590,11 @@ ASTNode* ParseDeclaration(){
 	if(tok->type != T_Identifier)	FatalM("Expected identifier!", Line);
 	const char* id = tok->value.strVal;
 	InsertVar(id, NULL, type, cType, sc, scope);
-	if (PeekToken()->type != T_Equal)
-		return MakeASTNodeEx(A_Declare, type, NULL, NULL, NULL, FlexStr(id), FlexInt(sc), cType);
+	if (PeekToken()->type != T_Equal){
+		ASTNode* n = MakeASTNodeEx(A_Declare, type, NULL, NULL, NULL, FlexStr(id), FlexInt(sc), cType);
+		n->sClass = sc;
+		return n;
+	}
 	GetToken();
 	ASTNode* expr = ParseExpression();
 	int typeCompat = CheckTypeCompatibility(type, expr->type);
@@ -604,9 +609,13 @@ ASTNode* ParseDeclaration(){
 		if(typeSize < 8) // If expression result is too large to fit in variable, truncate it
 			if(expr->value.intVal >= ((unsigned long long)1 << (8 * typeSize)))
 				expr->value.intVal &= ((unsigned long long)1 << (8 * typeSize)) - 1;
-		return MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(sc), cType);
+				ASTNode* n = MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(sc), cType);
+				n->sClass = sc;
+				return n;
 	}
-	return MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(sc), cType);
+	ASTNode* n = MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(sc), cType);
+	n->sClass = sc;
+	return n;
 }
 
 ASTNode* ParseIfStatement(){
@@ -812,7 +821,9 @@ ASTNode* ParseFunction(){
 	InsertFunc(idStr, FlexPtr(params), type, NULL);
 	if(PeekToken()->type == T_Semicolon){
 		GetToken();
-		return MakeASTNodeEx(A_Function, type, NULL, NULL, NULL, FlexStr(idStr), FlexPtr(params), cType);
+		ASTNode* n = MakeASTNodeEx(A_Function, type, NULL, NULL, NULL, FlexStr(idStr), FlexPtr(params), cType);
+		n->sClass = sc;
+		return n;
 	}
 	EnterScope();
 	if(params != NULL){
@@ -825,7 +836,9 @@ ASTNode* ParseFunction(){
 	if(PeekToken()->type != T_OpenBrace)	FatalM("Invalid function declaration; Expected open brace '{'.", Line);
 	ASTNode* block = ParseBlock();
 	ExitScope();
-	return MakeASTNodeEx(A_Function, type, block, NULL, NULL, FlexStr(idStr), FlexPtr(params), cType);
+	ASTNode* n = MakeASTNodeEx(A_Function, type, block, NULL, NULL, FlexStr(idStr), FlexPtr(params), cType);
+	n->sClass = sc;
+	return n;
 }
 
 ASTNode* ParseEnumDeclaration(){

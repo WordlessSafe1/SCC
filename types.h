@@ -109,6 +109,7 @@ enum eTokenCategory {
 	T_Case,
 	T_Default,
 	T_Sizeof,
+	T_Static,
 };
 
 enum eNodeType {
@@ -176,7 +177,8 @@ enum eNodeType {
 
 enum eStorageClass{
 	C_Default	= 0,
-	C_Extern	= 0b1,
+	C_Extern,
+	C_Static,
 };
 
 union flexible_value {
@@ -213,6 +215,7 @@ struct ast_node {
 	FlexibleValue value;
 	FlexibleValue secondaryValue;
 	SymEntry* cType;
+	StorageClass sClass;
 	bool lvalue;
 };
 
