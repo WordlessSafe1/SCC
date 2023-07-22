@@ -609,13 +609,17 @@ ASTNode* ParseWhileLoop(){
 	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in while loop!", Line);
 	ASTNode* condition = ParseExpression();
 	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in while loop!", Line);
+	loopDepth++;
 	ASTNode* stmt = ParseStatement();
+	loopDepth--;
 	return MakeASTBinary(A_While, P_Undefined, condition, stmt, FlexNULL());
 }
 
 ASTNode* ParseDoLoop(){
 	if(GetToken()->type != T_Do)			FatalM("Expected 'do' to begin do-while loop!", Line);
+	loopDepth++;
 	ASTNode* stmt = ParseStatement();
+	loopDepth--;
 	if(GetToken()->type != T_While)			FatalM("Expected 'while' clause in do-while loop!", Line);
 	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in do-while loop!", Line);
 	ASTNode* condition = ParseExpression();
@@ -639,7 +643,9 @@ ASTNode* ParseForLoop(){
 	if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon in for loop!", Line);
 	ASTNode* modifier	= PeekToken()->type == T_CloseParen ? NULL : ParseExpression();
 	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in for loop!", Line);
+	loopDepth++;
 	ASTNode* stmt = ParseStatement();
+	loopDepth--;
 	ASTNode* header = MakeASTNode(A_Glue, P_Undefined, initializer, condition, modifier, FlexNULL(), NULL);
 	ExitScope();
 	return MakeASTBinary(A_For, P_Undefined, header, stmt, FlexNULL());
@@ -656,7 +662,6 @@ ASTNode* ParseSwitch(){
 	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in switch statement!", Line);
 	if(GetToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' to denote body of switch statement!", Line);
 	ASTNodeList* cases = MakeASTNodeList();
-	int caseCount = 0;
 	switchDepth++;
 	while(PeekToken()->type != T_CloseBrace){
 		int* caseValue = NULL;
@@ -714,8 +719,14 @@ ASTNode* ParseStatement(){
 		case T_For:			return ParseForLoop();
 		case T_While:		return ParseWhileLoop();
 		case T_Do:			return ParseDoLoop();
-		case T_Continue:	GetToken(); return MakeASTLeaf(A_Continue, P_Undefined, FlexNULL());
-		case T_Break:		GetToken(); return MakeASTLeaf(A_Break, P_Undefined, FlexNULL());
+		case T_Continue:
+			if(!loopDepth)					FatalM("A 'continue' statement may only be used inside of a loop!", Line);
+			GetToken();
+			return MakeASTLeaf(A_Continue, P_Undefined, FlexNULL());
+		case T_Break:
+			if(!loopDepth && !switchDepth)	FatalM("A 'break' statement may only be used inside of a switch or loop!", Line);
+			GetToken();
+			return MakeASTLeaf(A_Break, P_Undefined, FlexNULL());
 		case T_Switch:		return ParseSwitch();
 		default:			break;
 	}
