@@ -33,7 +33,8 @@ enum ePrimordialType {
 	P_Char		= 0x20,
 	P_Int		= 0x30,
 	P_Long		= 0x40,
-	P_Composite	= 0x50,
+	P_LongLong	= 0x50,
+	P_Composite	= 0x60,
 };
 
 enum eTokenCategory {
@@ -182,7 +183,7 @@ enum eStorageClass{
 };
 
 union flexible_value {
-	long intVal;
+	long long intVal;
 	const char* strVal;
 	void* ptrVal;
 };
@@ -316,7 +317,7 @@ FlexibleValue FlexStr(const char* str){
 	return f;
 }
 
-FlexibleValue FlexInt(int num){
+FlexibleValue FlexInt(long long num){
 	FlexibleValue f;
 	f.intVal = num;
 	return f;
@@ -339,7 +340,8 @@ int GetPrimSize(PrimordialType prim){
 		case P_Void:		return 0;
 		case P_Char:		return 1;
 		case P_Int:			return 4;
-		case P_Long:		return 8;
+		case P_Long:		return 4;
+		case P_LongLong:	return 8;
 		default:			FatalM("Unhandled primordial in GetPrimSize()! (In types.h)", __LINE__);
 	}
 }

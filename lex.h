@@ -88,7 +88,21 @@ static Token* Tokenize(const char* str){
 		else if(streq(str, "static"))	token->type = T_Static;
 		else if(isdigit(str[0])){
 			token->type = T_LitInt;
-			token->value.intVal = atol(str);
+			char* end;
+			token->value.intVal = strtoll(str, &end, 10);
+			if(*end){
+				FatalM("Invalid integer literal!", Line);
+			}
+			if(errno == ERANGE){
+				WarnM("Integer literal too big!", Line);
+				long long i = 0;
+				char* buff = str;
+				do {
+					i *= 10;
+					i += *buff - 48;
+				} while(isdigit(*++buff));
+				token->value.intVal = i;
+			}
 		}
 		else if(str[0] == '\''){
 			if(str[2] != '\'' && str[1] != '\\')	FatalM("Invalid character literal!", Line);

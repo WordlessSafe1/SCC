@@ -47,7 +47,14 @@ PrimordialType ParseType(StorageClass* sc){
 		case T_Int:			type = P_Int;		break;
 		case T_Char:		type = P_Char;		break;
 		case T_Void:		type = P_Void;		break;
-		case T_Long:		type = P_Long;		break;
+		case T_Long:
+			if(PeekTokenN(1)->type == T_Long){
+				GetToken();
+				type = P_LongLong;
+			}
+			else
+				type = P_Long;
+			break;
 		case T_Enum:
 		case T_Union:
 		case T_Struct:		return P_Composite;	// Structs must be parsed with ParseCompRef()
@@ -247,7 +254,7 @@ ASTNode* ParseBase(){
 			else if(tok->value.intVal >= -2147483647 && tok->value.intVal <= 2147483647)
 				type = P_Int;
 			else
-				type = P_Long;
+				type = P_LongLong;
 			return MakeASTLeaf(A_LitInt, type, FlexInt(tok->value.intVal));
 		}
 		case T_LitStr:		return MakeASTLeaf(A_LitStr, P_Char + 1, tok->value);

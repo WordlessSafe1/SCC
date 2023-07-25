@@ -62,14 +62,14 @@ static char* CalculateLocalParamPosition(int n){
 static const char* GenLitInt(ASTNode* node){
 	if(node == NULL)			FatalM("Expected an AST node, got NULL instead.", Line);
 	if(node->op != A_LitInt)	FatalM("Expected literal int in expression!", Line);
-	const char* format = "	movq	$%d,	%%rax\n"; // NULL;
+	const char* format = "	movq	$%lld,	%%rax\n"; // NULL;
 	switch(GetPrimSize(node->type)){
-		// case 1:		format = "	movb	$%d,	%%al\n";	break;
-		// case 4:		format = "	movl	$%d,	%%eax\n";	break;
-		// case 8:		format = "	movq	$%d,	%%rax\n";	break;
-		default:	format = "	movq	$%d,	%%rax\n";	break;
+		// case 1:		format = "	movb	$%lld,	%%al\n";	break;
+		// case 4:		format = "	movl	$%lld,	%%eax\n";	break;
+		// case 8:		format = "	movq	$%lld,	%%rax\n";	break;
+		default:	format = "	movq	$%lld,	%%rax\n";	break;
 	}
-	int value = node->value.intVal;
+	long long value = node->value.intVal;
 	int charCount = strlen(format) + intlen(value) + 1;
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, value);
@@ -736,9 +736,9 @@ static char* GenDeclaration(ASTNode* node){
 		const char* format = NULL;
 		if(node->sClass == C_Static){
 			switch(GetTypeSize(node->type, node->cType)){
-				case 1:		format = "%s:\n	.byte	%d\n"; break;
-				case 4:		format = "%s:\n	.long	%d\n"; break;
-				case 8:		format = "%s:\n	.quad	%d\n"; break;
+				case 1:		format = "%s:\n	.byte	%lld\n"; break;
+				case 4:		format = "%s:\n	.long	%lld\n"; break;
+				case 8:		format = "%s:\n	.quad	%lld\n"; break;
 				default:	FatalM("Unsupported type size! (Internal @ gen.h)", __LINE__);
 			}
 			char* buffer = sngenf(strlen(format) + strlen(id) + intlen(node->lhs->value.intVal) + 1, format, id, node->lhs->value.intVal);
@@ -747,9 +747,9 @@ static char* GenDeclaration(ASTNode* node){
 			return calloc(1, sizeof(char));
 		}
 		switch(GetTypeSize(node->type, node->cType)){
-			case 1:		format = "	.globl %s\n%s:\n	.byte	%d\n"; break;
-			case 4:		format = "	.globl %s\n%s:\n	.long	%d\n"; break;
-			case 8:		format = "	.globl %s\n%s:\n	.quad	%d\n"; break;
+			case 1:		format = "	.globl %s\n%s:\n	.byte	%lld\n"; break;
+			case 4:		format = "	.globl %s\n%s:\n	.long	%lld\n"; break;
+			case 8:		format = "	.globl %s\n%s:\n	.quad	%lld\n"; break;
 			default:	FatalM("Unsupported type size! (Internal @ gen.h)", __LINE__);
 		}
 		const int charCount = strlen(format) + (2 * strlen(id)) + intlen(node->lhs->value.intVal) + 1;
@@ -931,7 +931,7 @@ static char* GenSwitch(ASTNode* node){
 	int lbreak = labels.lbreak;
 	labels.lbreak = (localLabelPref * 10) + 9;
 	const char* caseFrmt = "L%d:\n" "%s";
-	const char* jmpFrmt = "	.quad	%d,	L%d\n";
+	const char* jmpFrmt = "	.quad	%lld,	L%d\n";
 	for(int i = 0; i < childCount; i++){
 		ASTNode* inner = list->nodes[i];
 		caseLabel[i] = lVar++;

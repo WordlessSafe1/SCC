@@ -5,6 +5,7 @@
 #include <string.h>
 #include <math.h>
 #include <io.h>
+#include <errno.h>
 
 #include "defs.h"
 #include "types.h"
@@ -250,7 +251,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_EnumValue: {
 			const int charCount = strlen(tree->value.strVal) + intlen(tree->secondaryValue.intVal) + (tree->value.intVal < 0) + 2 + 1;
 			char* buffer = malloc(charCount * sizeof(char));
-			snprintf(buffer, charCount, "%s)(%d", tree->value.strVal, tree->secondaryValue.intVal);
+			snprintf(buffer, charCount, "%s)(%lld", tree->value.strVal, tree->secondaryValue.intVal);
 			val = buffer;
 			break;
 		}
@@ -258,7 +259,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_LitInt:{
 			const int charCount = intlen(tree->value.intVal) + (tree->value.intVal < 0) + 1;
 			char* buffer = malloc(charCount * sizeof(char));
-			snprintf(buffer, charCount, "%d", tree->value.intVal);
+			snprintf(buffer, charCount, "%lld", tree->value.intVal);
 			val = buffer;
 			break;
 		}
@@ -332,6 +333,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case P_Char:		type = "char";		break;
 		case P_Int:			type = "int";		break;
 		case P_Long:		type = "long";		break;
+		case P_LongLong:	type = "long long";	break;
 		case P_Composite:	type = "struct";	break;
 	}
 	if(tree->type & 0x0F){
@@ -390,4 +392,13 @@ char* sngenf(int bufferSize, const char* format, ...){
 	vsnprintf(buffer, bufferSize, format, args);
 	va_end(args);
 	return buffer;
+}
+
+int intlen(long long i){
+	int l = 0;
+	while(i){
+		l++;
+		i /= 10;
+	}
+	return l;
 }

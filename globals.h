@@ -26,3 +26,4 @@ extern_main char* strjoin(const char* lhs, const char* rhs);
 // - Frees the string referenced by lhs
 extern_main char* strapp(char** lhs, const char* rhs);
 extern_main char* sngenf(int bufferSize, const char* format, ...);
+extern_main int intlen(long long i);
