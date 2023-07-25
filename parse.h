@@ -185,55 +185,6 @@ ASTNode* ParseBase(){
 		case T_Identifier:
 			if(PeekToken()->type == T_OpenParen)
 				return ParseFunctionCall(tok);
-			if(PeekToken()->type == T_OpenBracket){
-				ASTNode* varRef = ParseVariableReference(tok);
-				if (varRef == NULL)	FatalM("Undefined variable!", Line);
-				if(GetToken()->type != T_OpenBracket)	FatalM("Expected open bracket in array access!", Line);
-				ASTNode* expr = ParseExpression();
-				if(GetToken()->type != T_CloseBracket)	FatalM("Expected close bracket in array access!", Line);
-				ASTNode* scale = MakeASTBinary(A_Multiply, expr->type, expr, MakeASTLeaf(A_LitInt, P_Int, FlexInt(GetPrimSize(varRef->type - 1))), FlexNULL());
-				ASTNode* add = MakeASTBinary(A_Add, varRef->type - 1, varRef, scale, FlexNULL());
-				ASTNode* deref = MakeASTUnary(A_Dereference, add, FlexNULL(), varRef->cType);
-				return deref;
-			}
-			if(PeekToken()->type == T_Arrow || PeekToken()->type == T_Period){
-				ASTNode* node = ParseVariableReference(tok);
-				if (node == NULL)	FatalM("Undefined struct member!", Line);
-				if(node->cType == NULL)	FatalM("Can only access members of a composite!", Line);
-				if(PeekToken()->type == T_Arrow){
-					if(!(node->type & 0x0F))		FatalM("Pointer member accessor may only be used on a pointer!", Line);
-				}
-				else
-					if(node->type & 0x0F)			FatalM("Composite member accessor used on pointer!", Line);
-				while(PeekToken()->type == T_Arrow || PeekToken()->type == T_Period){
-					Token* accessor = GetToken();
-					Token* idTok = GetToken();
-					if(idTok->type != T_Identifier)	FatalM("Expected member name!", Line);
-					SymEntry* member = GetMember(node->cType, idTok->value.strVal);
-					ASTNode* offset = MakeASTLeaf(A_LitInt, P_Int, FlexInt(member->value.intVal));
-					if(accessor->type == T_Arrow){
-						ASTNode* add = MakeASTBinary(A_Add, member->type, node, offset, FlexNULL());
-						node = MakeASTUnary(A_Dereference, add, FlexNULL(), member->cType);
-						continue;
-					}
-					ASTNode* address = MakeASTUnary(A_AddressOf, node, FlexNULL(), NULL);
-					ASTNode* add = MakeASTBinary(A_Add, member->type, address, offset, FlexNULL());
-					node = MakeASTUnary(A_Dereference, add, FlexNULL(), member->cType);
-				}
-				return node;
-			}
-			if(PeekToken()->type == T_Period){
-				ASTNode* varRef = ParseVariableReference(tok);
-				if(varRef->cType == NULL)	FatalM("Can only access members of a composite!", Line);
-				if(GetToken()->type != T_Period)	FatalM("Expected period '.' in value struct member access!", Line);
-				Token* idTok = GetToken();
-				if(idTok->type != T_Identifier)	FatalM("Expected member name!", Line);
-				SymEntry* member = GetMember(varRef->cType, idTok->value.strVal);
-				ASTNode* offset = MakeASTLeaf(A_LitInt, P_Int, FlexInt(member->value.intVal));
-				ASTNode* address = MakeASTUnary(A_AddressOf, varRef, FlexNULL(), NULL);
-				ASTNode* add = MakeASTBinary(A_Add, member->type, address, offset, FlexNULL());
-				return MakeASTUnary(A_Dereference, add, FlexNULL(), member->cType);
-			}
 			ASTNode* varRef = ParseVariableReference(tok);
 			if(varRef != NULL)
 				return varRef;
@@ -262,6 +213,82 @@ ASTNode* ParseBase(){
 	}
 }
 
+ASTNode* ParseArraySubscript(ASTNode* node){
+	GetToken();
+	ASTNode* expr = ParseExpression();
+	if(GetToken()->type != T_CloseBracket)	FatalM("Expected close bracket in array access!", Line);
+	ASTNode* scale = MakeASTBinary(A_Multiply, expr->type, expr, MakeASTLeaf(A_LitInt, P_Int, FlexInt(GetPrimSize(node->type - 1))), FlexNULL());
+	ASTNode* add = MakeASTBinary(A_Add, node->type - 1, node, scale, FlexNULL());
+	ASTNode* deref = MakeASTUnary(A_Dereference, add, FlexNULL(), node->cType);
+	return deref;
+}
+
+ASTNode* ParseValueAccessor(ASTNode* node){
+	GetToken();
+	Token* idTok = GetToken();
+	if(idTok->type != T_Identifier)	FatalM("Expected member name!", Line);
+	SymEntry* member = GetMember(node->cType, idTok->value.strVal);
+	ASTNode* offset = MakeASTLeaf(A_LitInt, P_Int, FlexInt(member->value.intVal));
+	ASTNode* address = MakeASTUnary(A_AddressOf, node, FlexNULL(), NULL);
+	ASTNode* add = MakeASTBinary(A_Add, member->type, address, offset, FlexNULL());
+	return MakeASTUnary(A_Dereference, add, FlexNULL(), member->cType);
+}
+
+ASTNode* ParsePointerAccessor(ASTNode* node){
+	GetToken();
+	Token* idTok = GetToken();
+	if(idTok->type != T_Identifier)	FatalM("Expected member name!", Line);
+	SymEntry* member = GetMember(node->cType, idTok->value.strVal);
+	ASTNode* offset = MakeASTLeaf(A_LitInt, P_Int, FlexInt(member->value.intVal));
+	ASTNode* add = MakeASTBinary(A_Add, member->type, node, offset, FlexNULL());
+	return MakeASTUnary(A_Dereference, add, FlexNULL(), member->cType);
+}
+
+ASTNode* ParsePost(ASTNode* node){
+	Token* tok = PeekToken();
+	switch(tok->type){
+		case T_PlusPlus:
+			if(!node->lvalue)				FatalM("The increment postfix operator may only be preceded by an lvalue!", Line);
+			if(node->type == P_Composite)	FatalM("The increment postfix operator may not be used on composite types!", Line);
+			GetToken();
+			return MakeASTUnary(A_Increment, node, FlexNULL(), NULL);
+		case T_MinusMinus:
+			if(!node->lvalue)				FatalM("The decrement postfix operator may only be preceded by an lvalue!", Line);
+			if(node->type == P_Composite)	FatalM("The decrement postfix operator may not be used on composite types!", Line);
+			GetToken();
+			return MakeASTUnary(A_Decrement, node, FlexNULL(), NULL);
+		case T_OpenParen:
+			return NULL; // Function calls are currently only handled alongside identifiers. Function pointers are not yet supported.
+		case T_OpenBracket:
+			if(!node->lvalue)				FatalM("The array accessor operator may only be preceded by an lvalue!", Line);
+			return ParseArraySubscript(node);
+		case T_Period:
+			if(!node->lvalue)				FatalM("The member accessor may only be preceded by an lvalue!", Line);
+			if(node->type != P_Composite)	FatalM("The member accessor may only be used on a composite!", Line);
+			if(node->type & 0x0F)			FatalM("The member accessor may not be used on a pointer!", Line);
+			if(node->cType == NULL)			FatalM("Can only access members of a composite!", Line);
+			return ParseValueAccessor(node);
+		case T_Arrow:
+			if(!node->lvalue)						FatalM("The dereferencing member accessor may only be preceded by an lvalue!", Line);
+			if(!(node->type & 0x0F))				FatalM("The dereferencing member accessor may only be used on a pointer!", Line);
+			if((node->type & 0xF0) != P_Composite)	FatalM("The dereferencing member accessor may only be used on a composite pointer!", Line);
+			if(node->cType == NULL)					FatalM("Can only access members of a composite!", Line);
+			return ParsePointerAccessor(node);
+		default:
+			return NULL;
+	}
+}
+
+ASTNode* ParsePrimary(){
+	ASTNode* node = ParseBase();
+	ASTNode* post = ParsePost(node);
+	while(post != NULL){
+		node = post;
+		post = ParsePost(node);
+	}
+	return node;
+}
+
 ASTNode* ParseFactor(){
 	Token* tok = PeekToken();
 	switch(tok->type){
@@ -271,14 +298,14 @@ ASTNode* ParseFactor(){
 		case T_Semicolon:	return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
 		case T_PlusPlus:{
 			GetToken();
-			ASTNode* ref = ParseBase();
+			ASTNode* ref = ParsePrimary();
 			if(ref->op != A_VarRef)			FatalM("The increment prefix operator '++' may only be used before a variable name!", Line);
 			if(ref->type == P_Composite)	FatalM("Composite increments not supported!", Line);
 			return MakeASTUnary(A_Increment, ref, FlexInt(1), NULL);
 		}
 		case T_MinusMinus:{
 			GetToken();
-			ASTNode* ref = ParseBase();
+			ASTNode* ref = ParsePrimary();
 			if(ref->op != A_VarRef)			FatalM("The decrement prefix operator '--' may only be used before a variable name!", Line);
 			if(ref->type == P_Composite)	FatalM("Composite decrements not supported!", Line);
 			return MakeASTUnary(A_Decrement, ref, FlexInt(1), NULL);
@@ -339,7 +366,7 @@ ASTNode* ParseFactor(){
 			}
 			// FALL THROUGH
 		}
-		default:	return ParseBase();
+		default:	return ParsePrimary();
 	}
 }
 

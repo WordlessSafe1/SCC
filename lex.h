@@ -96,7 +96,7 @@ static Token* Tokenize(const char* str){
 			if(errno == ERANGE){
 				WarnM("Integer literal too big!", Line);
 				long long i = 0;
-				char* buff = str;
+				const char* buff = str;
 				do {
 					i *= 10;
 					i += *buff - 48;

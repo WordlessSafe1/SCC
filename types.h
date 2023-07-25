@@ -442,7 +442,7 @@ SymEntry* GetMember(SymEntry* structDef, const char* member){
 	if(members == NULL)		FatalM("Struct definition contained no members! (Internal @ types.h)", __LINE__);
 	while(!streq(members->key, member) && members->sValue.ptrVal != NULL)
 		members = members->sValue.ptrVal;
-	if(!streq(members->key, member))	FatalM("Invalid member!", Line);
+	if(!streq(members->key, member))	FatalM("Undefined composite member!", Line);
 	return members;
 }
 
