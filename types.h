@@ -197,6 +197,7 @@ struct doubly_linked_list {
 struct param {
 	const char* id;
 	PrimordialType type;
+	SymEntry* cType;
 	Parameter* next;
 	Parameter* prev;
 };
@@ -414,10 +415,11 @@ ASTNode* WidenNode(ASTNode* node, PrimordialType complement, NodeType op){
 	return node;
 }
 
-Parameter* MakeParam(const char* id, PrimordialType type, Parameter* prev){
+Parameter* MakeParam(const char* id, PrimordialType type, SymEntry* cType, Parameter* prev){
 	Parameter* p = malloc(sizeof(Parameter));
 	p->id = id;
 	p->type = type;
+	p->cType = cType;
 	p->prev = prev;
 	if (prev != NULL) {
 		p->next = prev->next;

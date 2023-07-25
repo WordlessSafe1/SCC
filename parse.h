@@ -806,20 +806,24 @@ ASTNode* ParseFunction(){
 		if(PeekToken()->type == T_Ellipsis){
 			GetToken();
 			if(PeekToken()->type != T_CloseParen)	FatalM("Varaidic parameters must be the last parameter in a function prototype!", Line);
-			params = MakeParam("...", P_Void, params);
+			params = MakeParam("...", P_Void, NULL, params);
 			break;
 		}
 		PrimordialType paramType = ParseType(NULL);
 		if(paramType == P_Undefined)		FatalM("Invalid type in parameter list!", Line);
-		if(paramType == P_Composite && (NULL != ParseCompRef(&paramType)))
-			FatalM("Composite parameters not yet supported!", Line);
+		SymEntry* cType = NULL;
+		if(paramType == P_Composite){
+			cType = ParseCompRef(&paramType);
+			if(paramType == P_Composite)
+				FatalM("Value composite parameters are not yet supported!", Line);
+		}
 		Token* t = GetToken();
 		if(t->type != T_Identifier)			FatalM("Expected identifier in parameter list!", Line);
 		int charCount = strlen(t->value.strVal) + 1;
 		char* paramName = malloc(charCount * sizeof(char));
 		paramName = strncpy(paramName, t->value.strVal, charCount);
 		free(t);
-		params = MakeParam(paramName, paramType, params);
+		params = MakeParam(paramName, paramType, cType, params);
 	}
 	if(params != NULL)
 		while (params->prev != NULL)
@@ -836,7 +840,7 @@ ASTNode* ParseFunction(){
 	if(params != NULL){
 		Parameter* p = params;
 		do {
-			InsertVar(p->id, NULL, p->type, NULL, sc, scope);
+			InsertVar(p->id, NULL, p->type, p->cType, sc, scope);
 			p = p->next;
 		} while( p != NULL);
 	}
