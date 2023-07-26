@@ -498,7 +498,7 @@ static const char* GenIncDec(ASTNode* node){
 			if(var == NULL)	FatalM("Variable not defined!", Line);
 			const char* location = var->value.strVal;
 			int fb_charCount = strlen(action) + strlen(move) + 1;
-			char* format = node->value.intVal ? sngenf(fb_charCount, formatBuilder, move, action) : sngenf(fb_charCount, formatBuilder, action, move);
+			char* format = node->value.intVal ? sngenf(fb_charCount, formatBuilder, action, move) : sngenf(fb_charCount, formatBuilder, move, action);
 			int charCount = strlen(format) + (2 * strlen(location));
 			char* str = sngenf(charCount, format, location, location);
 			free(format);
@@ -532,7 +532,7 @@ static const char* GenIncDec(ASTNode* node){
 			}
 			const char* inner = GenExpressionAsm(innerNode);
 			int charCount = strlen(action) + strlen(move) + strlen(format) + strlen(inner) + 1;
-			return node->value.intVal ? sngenf(charCount, format, inner, move, action) : sngenf(charCount, format, inner, action, move);
+			return node->value.intVal ? sngenf(charCount, format, inner, action, move) : sngenf(charCount, format, inner, move, action);
 		}
 		default:
 			FatalM("Unsupported lvalue in increment / decrement!", Line);
