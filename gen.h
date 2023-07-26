@@ -488,38 +488,55 @@ static const char* GenAssignment(ASTNode* node){
 static const char* GenIncDec(ASTNode* node){
 	if(node == NULL)										FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
 	if(node->op != A_Increment && node->op != A_Decrement)	FatalM("Expected increment or decrement in expression! (In gen.h)", __LINE__);
-	const char* id = node->lhs->value.strVal;
-	SymEntry* var = FindVar(id, scope);
-	if(var == NULL)				FatalM("Variable not defined!", Line);
-	const char* format;
-	if(node->op == A_Increment){
-		if(node->value.intVal)
-			format =
-				"	movq	%s,	%%rax\n"
-				"	incq	%s\n"
+	switch(node->lhs->op){
+		case A_VarRef:{
+			const char* move = "	movq	%s,	%%rax\n";
+			const char* action = (node->op == A_Increment) ? "	incq	%s\n" : "	decq	%s\n";
+			const char* formatBuilder = "%s%s";
+			const char* id = node->lhs->value.strVal;
+			SymEntry* var = FindVar(id, scope);
+			if(var == NULL)	FatalM("Variable not defined!", Line);
+			const char* location = var->value.strVal;
+			int fb_charCount = strlen(action) + strlen(move) + 1;
+			char* format = node->value.intVal ? sngenf(fb_charCount, formatBuilder, move, action) : sngenf(fb_charCount, formatBuilder, action, move);
+			int charCount = strlen(format) + (2 * strlen(location));
+			char* str = sngenf(charCount, format, location, location);
+			free(format);
+			return str;
+		}
+		case A_Dereference:{
+			ASTNode* innerNode = node->lhs->lhs;
+			if(innerNode == NULL)	FatalM("Expected inner node, got NULL instead! (Internal @ gen.h)", __LINE__);
+			if(innerNode->op == A_VarRef){
+				node->lhs = innerNode;
+				return GenIncDec(node);
+			}
+			const char* format = 
+				"%s"	// ASM of dereference's lhs
+				"	movq	%%rax,	%%rcx\n"	// clear %rax for return
+				"%s"	// mov		OR inc/dec
+				"%s"	// inc/dec	OR mov
 			;
-		else
-			format =
-				"	incq	%s\n"
-				"	movq	%s,	%%rax\n"
-			;
+			const char* move = NULL;
+			const char* action = NULL;
+			switch(GetTypeSize(innerNode->type, innerNode->cType)){
+				case 4:
+					move	= "	movl	(%rcx),	%eax\n";
+					action	= (node->op == A_Increment) ? "	incl	(%rcx)\n" : "	decl	(%rcx)\n";
+					break;
+				case 8:
+					move	= "	movq	(%rcx),	%rax\n";
+					action	= (node->op == A_Increment) ? "	incq	(%rcx)\n" : "	decq	(%rcx)\n";
+					break;
+				default:	FatalM("Unhandled type size! (Internal @ gen.h)", __LINE__);
+			}
+			const char* inner = GenExpressionAsm(innerNode);
+			int charCount = strlen(action) + strlen(move) + strlen(format) + strlen(inner) + 1;
+			return node->value.intVal ? sngenf(charCount, format, inner, move, action) : sngenf(charCount, format, inner, action, move);
+		}
+		default:
+			FatalM("Unsupported lvalue in increment / decrement!", Line);
 	}
-	else{
-		if(node->value.intVal)
-			format =
-				"	movq	%s,	%%rax\n"
-				"	decq	%s\n"
-			;
-		else
-			format =
-				"	decq	%s\n"
-				"	movq	%s,	%%rax\n"
-			;
-	}
-	int charCount = strlen(format) + (2 * strlen(var->value.strVal));
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, format, var->value, var->value);
-	return str;
 }
 
 static const char* GenCompoundAssignment(ASTNode* node){
