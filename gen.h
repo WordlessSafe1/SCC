@@ -1117,7 +1117,7 @@ static const char* GenFunctionAsm(ASTNode* node){
 			varLoc = malloc(charCount * sizeof(char));
 			snprintf(varLoc, charCount, format, offset);
 		}
-		InsertVar(params->id, varLoc, params->type, NULL, C_Default, scope);
+		InsertVar(params->id, varLoc, params->type, params->cType, C_Default, scope);
 		const char* const format = "	movq	%s,	%s\n";
 		const int charCount = strlen(format) + strlen(varLoc) + strlen(paramPos) + 1;
 		char* buffer = calloc(charCount, sizeof(char));

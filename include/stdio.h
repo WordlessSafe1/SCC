@@ -13,5 +13,6 @@ int fclose(FILE *stream);
 int printf(char *format, ...);
 int fprintf(FILE *stream, char *format, ...);
 void puts(char* str);
+void putchar(char c);
 
 #endif	// _STDIO_H_

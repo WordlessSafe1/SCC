@@ -841,8 +841,12 @@ ASTNode* ParseFunction(){
 		SymEntry* cType = NULL;
 		if(paramType == P_Composite){
 			cType = ParseCompRef(&paramType);
-			if(paramType == P_Composite)
-				FatalM("Value composite parameters are not yet supported!", Line);
+			if(paramType == P_Composite){
+				int size = GetTypeSize(paramType, cType);
+				if(size > 8){
+					FatalM("Value composite parameters >64bit in size are not yet supported!", Line);
+				}
+			}
 		}
 		Token* t = GetToken();
 		if(t->type != T_Identifier)			FatalM("Expected identifier in parameter list!", Line);
