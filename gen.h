@@ -107,20 +107,32 @@ static const char* GenFuncCall(ASTNode* node){
 	ASTNodeList* params = node->secondaryValue.ptrVal;
 	int pCount = params->count;
 	char* paramInit = calloc(1, sizeof(char));
+	int offset = pCount < 4 ? 32 : 32 + 8 * (pCount - 4);
+	offset = offset % 16 ? (offset / 16 + 1) * 16 : offset;
 	for (int i = pCount - 1; i >= 0; i--) {
+		ASTNode* curNode = params->nodes[i];
 		const char* const format = "%s	movq	%%rax,	%s\n";
 		char* pos = CalculateParamPosition(i);
-		const char* inner = GenExpressionAsm(params->nodes[i]);
+		const char* inner = GenExpressionAsm(curNode);
+		if(curNode->cType != NULL && GetTypeSize(curNode->type, curNode->cType) > 8){
+			switch(curNode->op){
+				case A_Dereference:
+					if(curNode->lhs->op != A_VarRef){
+						inner = GenExpressionAsm(curNode->lhs); // Loads the address into %eax
+						break;
+					}
+					// continue
+					FatalM("Composite dereference in function call!", Line);
+				case A_VarRef:		FatalM("Composite variable reference in function call!", Line);
+				default:			FatalM("Unhandled lvalue in function call composite! (Internal @ gen.h)", __LINE__);
+			}
+		}
 		const int charCount = strlen(inner) + strlen(format) + strlen(pos) + 1;
-		char* buffer = malloc(charCount * sizeof(char));
-		snprintf(buffer, charCount, format, inner, pos);
-		paramInit = realloc(paramInit, strlen(paramInit) + charCount);
-		strncat(paramInit, buffer, strlen(paramInit) + charCount);
+		char* buffer = sngenf(charCount, format, inner, pos);
+		strapp(&paramInit, buffer);
 		free(pos);
 		free(buffer);
 	}
-	int offset = pCount < 4 ? 32 : 32 + 8 * (pCount - 4);
-	offset = offset % 16 ? (offset / 16 + 1) * 16 : offset;
 	const char* format =
 		"	subq	$%d,	%%rsp\n"
 		"%s"	// ParamInit
@@ -140,17 +152,13 @@ static const char* GenVarRef(ASTNode* node){
 	SymEntry* var = FindVar(id, scope);
 	if(var == NULL)				FatalM("Variable not defined!", Line);
 	const char* format = NULL;
-	// if(strchr(var->key, 'i') != NULL){
-		// // Var is global
 	switch(GetTypeSize(var->type, var->cType)){
 		case 1:		format = "	movzbq	%s,	%%rax\n";	break;
+		case 2:		format = "	movzwq	%s,	%%rax\n";	break;
 		case 4:		format = "	movslq	%s,	%%rax\n";	break;
 		case 8:		format = "	movq	%s,	%%rax\n";	break;
 		default:	format = "	movq	%s,	%%rax\n";	break;
 	};
-	// }
-	// else
-	// 	format = "	movq	%s,	%%rax\n";
 	int charCount = strlen(format) + strlen(var->value.strVal) + 1;
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, format, var->value);

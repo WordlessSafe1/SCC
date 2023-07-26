@@ -844,7 +844,7 @@ ASTNode* ParseFunction(){
 			if(paramType == P_Composite){
 				int size = GetTypeSize(paramType, cType);
 				if(size > 8){
-					FatalM("Value composite parameters >64bit in size are not yet supported!", Line);
+					// FatalM("Value composite parameters >64bit in size are not yet supported!", Line);
 				}
 			}
 		}

@@ -61,6 +61,16 @@ static SymEntry* MakeStructEntry(const char* name, SymEntry* members){
 		ret->sValue.intVal += GetTypeSize(pos->type, pos->cType);
 		pos = pos->sValue.ptrVal;
 	}
+	// int totalSize = 0;
+	// while(pos != NULL){
+	// 	int size = GetTypeSize(pos->type, pos->cType);
+	// 	if(totalSize % size)
+	// 		totalSize = align(totalSize, size);
+	// 	pos->value.intVal = totalSize;
+	// 	totalSize += size;
+	// 	pos = pos->sValue.ptrVal;
+	// }
+	// ret->sValue.intVal = totalSize;
 	ret->type = P_Composite;
 	ret->sType = S_Composite;
 	ret->cType = NULL;
