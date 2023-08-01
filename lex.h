@@ -126,7 +126,7 @@ static Token* Tokenize(const char* str){
 					case '\'':	token->value.intVal = '\''; break;
 					case '"':	token->value.intVal = '\"'; break;
 					case '?':	token->value.intVal = '\?'; break;
-					case 'x':	token->value.intVal = strtol(str + 3, NULL, 16); break;
+					case 'x':	token->value.intVal = strtoll(str + 3, NULL, 16); break;
 					case 'u':	FatalM("Unicode escapes not yet supported!", Line);
 					case 'U':	FatalM("Extended Unicode escapes not yet supported!", Line);
 					default:	FatalM("Multi-character character literal!", Line);
@@ -162,7 +162,7 @@ char* ShiftToken(){
 		while(c == '\0')	c = fgetc(fptr);
 		if(c == EOF)
 			break;
-		if(c == '#'){
+		if(!charLit && !strLit && c == '#'){
 			Token* tok = GetToken();
 			if(tok->type != T_LitInt)	FatalM("Expected pre-processor line number!", Line);
 			int l = tok->value.intVal;
@@ -181,9 +181,7 @@ char* ShiftToken(){
 			token[i++] = c;
 			if(c == '\'' && !escape)
 				charLit = !charLit;
-			escape = false;
-			if(c == '\\' && !escape)
-				escape = true;
+			escape = !escape && c == '\\';
 			continue;
 		}
 		if(strLit){
