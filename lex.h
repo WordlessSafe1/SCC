@@ -89,7 +89,10 @@ static Token* Tokenize(const char* str){
 		else if(isdigit(str[0])){
 			token->type = T_LitInt;
 			char* end;
-			token->value.intVal = strtoll(str, &end, 10);
+			if(str[0] == '0' && str[1] == 'x')		token->value.intVal = strtoll(str + 2, &end, 16);
+			else if(str[0] == '0' && str[1] == 'b')	token->value.intVal = strtoll(str + 2, &end, 2);
+			else if(str[0] == '0' && str[1] == 'o')	token->value.intVal = strtoll(str + 2, &end, 8);
+			else									token->value.intVal = strtoll(str, &end, 10);
 			if(*end){
 				FatalM("Invalid integer literal!", Line);
 			}
