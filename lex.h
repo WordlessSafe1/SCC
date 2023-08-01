@@ -181,14 +181,31 @@ char* ShiftToken(){
 			token[i++] = c;
 			if(c == '\'' && !escape)
 				charLit = !charLit;
-			escape = !escape && c == '\\';
+			escape = c == '\\' && !escape;
 			continue;
 		}
 		if(strLit){
 			token[i++] = c;
-			if(c == '"' && !escape)
+			if(c == '"' && !escape){
+				// Peek ahead for next significant char
+				// If == '"', skip both
+				const char* fl = curFile;
+				int ln = Line;
+				fpos_t pos;
+				fgetpos(fptr, &pos);
+				char nextSigC = fgetc(fptr);
+				while(nextSigC == ' ' || nextSigC == '\n' || nextSigC == '\t')
+					nextSigC = fgetc(fptr);
+				if(nextSigC == '"'){
+					i--;
+					continue;
+				}
+				fsetpos(fptr, &pos);
+				Line = ln;
+				curFile = fl;
 				strLit = !strLit;
-			escape = !escape && c == '\\';
+			}
+			escape = c == '\\' && !escape;
 			continue;
 		}
 		if(c == '\'' && !strLit){
