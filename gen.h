@@ -579,7 +579,6 @@ static const char* GenCompoundAssignment(ASTNode* node){
 	char opc;
 	char opcl;
 	char nxopcl;
-	printf("Size: %d\n", GetTypeSize(node->lhs->type, node->lhs->cType));
 	switch(GetTypeSize(node->lhs->type, node->lhs->cType)){
 		case 1:
 			reg_a	= "%%al";
