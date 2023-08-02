@@ -612,7 +612,7 @@ static const char* GenCompoundAssignment(ASTNode* node){
 			opcl	= 'q';
 			nxopcl	= 'o';
 			break;
-		defualt:	FatalM("Unhandled type size in compound assignment generation! (Internal @ gen.h)", __LINE__);
+		default:	FatalM("Unhandled type size in compound assignment generation! (Internal @ gen.h)", __LINE__);
 	}
 	switch(node->op){
 		//region simple execution
