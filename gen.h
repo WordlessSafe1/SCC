@@ -549,63 +549,183 @@ static const char* GenIncDec(ASTNode* node){
 
 static const char* GenCompoundAssignment(ASTNode* node){
 	if(node == NULL)	FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
-	const char* id = node->lhs->value.strVal;
-	const char* rhs = GenExpressionAsm(node->rhs);
-	SymEntry* var = FindVar(id, scope);
-	if(var == NULL)		FatalM("Variable not defined!", Line);
+	const char* offset;
+	const char* preface = GenExpressionAsm(node->rhs);
+	switch(node->lhs->op){
+		case A_Dereference:
+			char* buffer = _strdup(GenExpressionAsm(node->lhs->lhs));
+			strapp(&buffer, "	push	%rax\n"); // Deref's addr => stack
+			strapp(&buffer, preface);
+			strapp(&buffer, "	pop		%r8\n"); // Load deref's addr => r8
+			preface = buffer;
+			offset = "(%r8)";
+			break;
+		case A_VarRef:{
+			const char* id = node->lhs->value.strVal;
+			
+			SymEntry* var = FindVar(id, scope);
+			if(var == NULL)		FatalM("Variable not defined!", Line);
+			offset = var->value.strVal;
+			break;
+		}
+		default:			FatalM("Unsupported lvalue in compound assignment! (Internal @ gen.h)", __LINE__);
+	}
 	// val, op, mov -> offset
-	const char* format = NULL;
+	char* format = NULL;
+	const char* fb_format = NULL;
+	const char* reg_a;
+	const char* reg_c;
+	const char* reg_d;
+	char opc;
+	char opcl;
+	char nxopcl;
+	printf("Size: %d\n", GetTypeSize(node->lhs->type, node->lhs->cType));
+	switch(GetTypeSize(node->lhs->type, node->lhs->cType)){
+		case 1:
+			reg_a	= "%%al";
+			reg_c	= "%%cl";
+			reg_d	= "%%dl";
+			opc		= 'b';
+			opcl	= 'b';
+			nxopcl	= 'w';
+			break;
+		case 2:
+			reg_a	= "%%ax";
+			reg_c	= "%%cx";
+			reg_d	= "%%dx";
+			opc		= 'w';
+			opcl	= 'w';
+			nxopcl	= 'd';
+			break;
+		case 4:
+			reg_a	= "%%eax";
+			reg_c	= "%%ecx";
+			reg_d	= "%%edx";
+			opc		= 'l';
+			opcl	= 'd';
+			nxopcl	= 'q';
+			break;
+		case 8:
+			reg_a	= "%%rax";
+			reg_c	= "%%rcx";
+			reg_d	= "%%rdx";
+			opc		= 'q';
+			opcl	= 'q';
+			nxopcl	= 'o';
+			break;
+		defualt:	FatalM("Unhandled type size in compound assignment generation! (Internal @ gen.h)", __LINE__);
+	}
 	switch(node->op){
-		case A_AssignSum:			format = "%s	add		%%rax,	%s\n	movq	%s,	%%rax\n";				break;
-		case A_AssignDifference:	format = "%s	sub		%%rax,	%s\n	movq	%s,	%%rax\n";				break;
-		case A_AssignProduct:		format = "%s	imul	%s,	%%rax\n	movq	%%rax,	%s\n";					break;
-		case A_AssignBitwiseAnd:	format = "%s	and		%%rax,	%s\n	movq	%s,	%%rax\n";				break;
-		case A_AssignBitwiseXor:	format = "%s	xor		%%rax,	%s\n	movq	%s,	%%rax\n";				break;
-		case A_AssignBitwiseOr:		format = "%s	or		%%rax,	%s\n	movq	%s,	%%rax\n";				break;
-		case A_AssignQuotient:
-			format = 
-				"%s"
-				"	movq	%%rax,	%%rcx\n"
-				"	movq	%s,	%%rax\n"
-				"	cqo\n"
-				"	idiv	%%rcx\n"
-				"	movq	%%rax,	%s\n"
-			;
+		//region simple execution
+		case A_AssignSum:			fb_format = "%%s	add%c	%s,	%%s\n	mov%c	%%s,	%s\n";		break;
+		case A_AssignDifference:	fb_format = "%%s	sub%c	%s,	%%s\n	mov%c	%%s,	%s\n";		break;
+		case A_AssignProduct:		fb_format = "%%s	imul%c	%%s,	%s\n	mov%c	%s,	%%s\n";		break;
+		case A_AssignBitwiseAnd:	fb_format = "%%s	and%c	%s,	%%s\n	mov%c	%%s,	%s\n";		break;
+		case A_AssignBitwiseXor:	fb_format = "%%s	xor%c	%s,	%%s\n	mov%c	%%s,	%s";		break;
+		case A_AssignBitwiseOr:		fb_format = "%%s	or%c		%s,	%%s\n	mov%c	%%s,	%s\n";	break;
+		//endregion simple execution
+		case A_AssignQuotient:{
+				const char* fb_format = 
+					"%%s"						// preface
+					"	mov%c	%s,	%s\n"		// opc, reg_a, reg_c
+					"	mov%c	%%s,	%s\n"	// opc, reg_a
+					"	c%c%c\n"				// opcl, nxopcl
+					"	idiv%c	%s\n"			// opc, reg_c
+					"	mov%c	%s,	%%s\n"		// opc, reg_a
+				;
+				int charCount =
+					strlen(fb_format)
+					+ sizeof(opcl)
+					+ sizeof(nxopcl)
+					+ (4 * sizeof(opc))
+					+ (3 * strlen(reg_a))
+					+ (2 * strlen(reg_c))
+					+ 1
+				;
+				format = malloc(charCount * sizeof(char));
+				snprintf(format, charCount, fb_format, opc, reg_a, reg_c, opc, reg_a, opcl, nxopcl, opc, reg_c, opc, reg_a);
+			}
 			break;
-		case A_AssignModulus:
-			format = 
-				"%s"
-				"	movq	%%rax,	%%rcx\n"
-				"	movq	%s,	%%rax\n"
-				"	cqo\n"
-				"	idiv	%%rcx\n"
-				"	movq	%%rdx,	%%rax\n"
-				"	movq	%%rax,	%s\n"
-			;
+		case A_AssignModulus:{
+				const char* fb_format = 
+					"%%s"						// preface
+					"	mov%c	%s,	%s\n"		// opc, reg_a, reg_c
+					"	mov%c	%%s,	%s\n"	// opc, reg_a
+					"	c%c%c\n"				// opcl, nxopcl
+					"	idiv%c	%s\n"			// opc, reg_c
+					"	mov%c	%s,	%s\n"		// opc, reg_d, reg_a
+					"	mov%c	%s,	%%s\n"		// opc, reg_a
+				;
+				int charCount = 
+					strlen(fb_format)
+					+ sizeof(opcl)
+					+ sizeof(nxopcl)
+					+ (3 * sizeof(opc))
+					+ (4 * strlen(reg_a))
+					+ (2 * strlen(reg_c))
+					+ strlen(reg_d)
+					+ 1
+				;
+				format = malloc(charCount * sizeof(char));
+				snprintf(format, charCount, fb_format, opc, reg_a, reg_c, opc, reg_a, opcl, nxopcl, opc, reg_c, opc, reg_d, reg_a, opc, reg_a);
+			}
 			break;
-		case A_AssignLeftShift:
-			format = 
-				"%s"
-				"	movq	%%rax,	%%rcx\n"
-				"	movq	%s,	%%rax\n"
-				"	shl		%%rcx,	%%rax\n"
-				"	movq	%%rax,	%s\n"
-			;
+		case A_AssignLeftShift:{
+				const char* fb_format = 
+					"%%s"						// preface
+					"	mov%c	%s,	%s\n"		// opc, reg_a, reg_c
+					"	mov%c	%%s,	%s\n"	// opc, reg_a
+					"	shl%c	%s,	%s\n"		// opc, reg_c, reg_a
+					"	mov%c	%s,	%%s\n"		// opc, reg_a
+				;
+				int charCount =
+					strlen(fb_format)
+					+ (4 * sizeof(opc))
+					+ (4 * strlen(reg_a))
+					+ (2 * strlen(reg_c))
+					+ 1
+				;
+				format = malloc(charCount * sizeof(char));
+				snprintf(format, charCount, fb_format, opc, reg_a, reg_c, opc, reg_a, opc, reg_c, reg_a, opc, reg_a);
+			}
 			break;
-		case A_AssignRightShift:
-			format = 
-				"%s"
-				"	movq	%%rax,	%%rcx\n"
-				"	movq	%s,	%%rax\n"
-				"	sar		%%rcx,	%%rax\n"
-				"	movq	%%rax,	%s\n"
-			;
+		case A_AssignRightShift:{
+				const char* fb_format =
+					"%%s"						// preface
+					"	mov%c	%s,	%s\n"		// opc, reg_a, reg_c
+					"	mov%c	%%s,	%s\n"	// opc, reg_a
+					"	sar%c	%s, %s\n"		// opc, reg_c, reg_a
+					"	mov%c	%s,	%%s\n"		// opc, reg_a
+				;
+				int charCount =
+					strlen(fb_format)
+					+ (4 * sizeof(opc))
+					+ (4 * strlen(reg_a))
+					+ (2 * strlen(reg_c))
+					+ 1
+				;
+				format = malloc(charCount * sizeof(char));
+				snprintf(format, charCount, fb_format, opc, reg_a, reg_c, opc, reg_a, opc, reg_c, reg_a, opc, reg_a);
+			}
 			break;
 		default:					FatalM("Unexpected operation in compound assignment! (In gen.h)", __LINE__);
 	}
-	int charCount = strlen(format) + strlen(rhs) + (2 * strlen(var->value.strVal)) + 1;
+	// If Format is NULL, try to build it using the common format builder
+	if(format == NULL){
+		if(fb_format == NULL)		FatalM("Got NULL format and NULL format builder! (Internal @ gen.h)", __LINE__);
+		int charCount =
+			strlen(fb_format)
+			+ (2 * sizeof(opc))
+			+ (2 * strlen(reg_a))
+			+ 1
+		;
+		format = malloc(charCount * sizeof(char));
+		snprintf(format, charCount, fb_format, opc, reg_a, opc, reg_a);
+	}
+	int charCount = strlen(format) + strlen(preface) + (2 * strlen(offset)) + 1;
 	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, format, rhs, var->value, var->value);
+	snprintf(str, charCount, format, preface, offset, offset);
+	free(format);
 	return str;
 }
 
@@ -1205,7 +1325,7 @@ char* GenerateAsm(ASTNodeList* node){
 			"switch:\n"
 			"	pushq	%rsi\n"			// Save %rsi
 			"	movq	%rdx,	%rsi\n"	// Base of jump table => %rsi
-			"	movq	%rax,	%rbx\n"	// Expression Value => %rbx
+			"	movq	%rax,	%r8\n"	// Expression Value => %r8
 			"	cld\n"					// Clear direction flag
 			"	lodsq\n"				// Case Count => %rax AND increment %rsi
 			"	movq	%rax,	%rcx\n"	// Case Count => %rcx
@@ -1213,7 +1333,7 @@ char* GenerateAsm(ASTNodeList* node){
 			"	lodsq\n"				// Case Value => %rax
 			"	movq	%rax,	%rdx\n"	// Case Value => %rdx
 			"	lodsq\n"				// Case Label => %rax
-			"	cmpq	%rdx,	%rbx\n"	// Case Value <=> Expression Value
+			"	cmpq	%rdx,	%r8\n"	// Case Value <=> Expression Value
 			"	jne		2f\n"			// If != jmp forward to 2
 			"	popq	%rsi\n"			// Restore %rsi
 			"	jmp		*%rax\n"		// Jump to label
