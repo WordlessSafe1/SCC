@@ -169,14 +169,7 @@ ASTNode* ParseVariableReference(Token* outerTok){
 	if (varInfo == NULL)				return NULL;
 	PrimordialType type = varInfo == NULL ? P_Undefined : varInfo->type;
 	ASTNode* ref = MakeASTNode(A_VarRef, type, NULL, NULL, NULL, FlexStr(outerTok->value.strVal), varInfo->cType);
-	Token* tok = PeekToken();
-	if(tok->type != T_PlusPlus && tok->type != T_MinusMinus)
-		return ref;
-	if(varInfo->type == P_Composite)	FatalM("Composite increments / decrements not supported!", Line);
-	tok = GetToken();
-	if(tok->type == T_PlusPlus)
-		return MakeASTUnary(A_Increment, ref, FlexInt(0), NULL);
-	return MakeASTUnary(A_Decrement, ref, FlexInt(0), NULL);
+	return ref;
 }
 
 ASTNode* ParseBase(){
@@ -248,16 +241,30 @@ ASTNode* ParsePointerAccessor(ASTNode* node){
 ASTNode* ParsePost(ASTNode* node){
 	Token* tok = PeekToken();
 	switch(tok->type){
-		case T_PlusPlus:
+		case T_PlusPlus:{
 			if(!node->lvalue)				FatalM("The increment postfix operator may only be preceded by an lvalue!", Line);
 			if(node->type == P_Composite)	FatalM("The increment postfix operator may not be used on composite types!", Line);
 			GetToken();
-			return MakeASTUnary(A_Increment, node, FlexNULL(), NULL);
-		case T_MinusMinus:
+			int size = 0;
+			ASTNode* rhs = NULL;
+			if(node->type & 0xF){
+				size = GetTypeSize(node->type - 1, node->cType);
+				rhs = MakeASTBinary(A_AssignSum, node->type, node, MakeASTLeaf(A_LitInt, P_LongLong, FlexInt(size)), FlexNULL());
+			}
+			return MakeASTNodeEx(A_Increment, node->type, node, NULL, rhs, FlexNULL(), FlexInt(size), NULL);
+		}
+		case T_MinusMinus:{
 			if(!node->lvalue)				FatalM("The decrement postfix operator may only be preceded by an lvalue!", Line);
 			if(node->type == P_Composite)	FatalM("The decrement postfix operator may not be used on composite types!", Line);
 			GetToken();
-			return MakeASTUnary(A_Decrement, node, FlexNULL(), NULL);
+			int size = 0;
+			ASTNode* rhs = NULL;
+			if(node->type & 0xF){
+				size = GetTypeSize(node->type - 1, node->cType);
+				rhs = MakeASTBinary(A_AssignDifference, node->type, node, MakeASTLeaf(A_LitInt, P_LongLong, FlexInt(size)), FlexNULL());
+			}
+			return MakeASTNodeEx(A_Decrement, node->type, node, NULL, rhs, FlexNULL(), FlexInt(size), NULL);
+		}
 		case T_OpenParen:
 			return NULL; // Function calls are currently only handled alongside identifiers. Function pointers are not yet supported.
 		case T_OpenBracket:
@@ -299,17 +306,29 @@ ASTNode* ParseFactor(){
 		case T_Semicolon:	return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
 		case T_PlusPlus:{
 			GetToken();
-			ASTNode* ref = ParsePrimary();
-			if(ref->op != A_VarRef)			FatalM("The increment prefix operator '++' may only be used before a variable name!", Line);
-			if(ref->type == P_Composite)	FatalM("Composite increments not supported!", Line);
-			return MakeASTUnary(A_Increment, ref, FlexInt(1), NULL);
+			ASTNode* node = ParseFactor();
+			if(!node->lvalue)				FatalM("The increment prefix operator '++' may only be used before an lvalue!", Line);
+			if(node->type == P_Composite)	FatalM("Composite increments not supported!", Line);
+			int size = 0;
+			ASTNode* rhs = NULL;
+			if(node->type & 0xF){
+				size = GetTypeSize(node->type - 1, node->cType);
+				rhs = MakeASTBinary(A_AssignSum, node->type, node, MakeASTLeaf(A_LitInt, P_LongLong, FlexInt(size)), FlexNULL());
+			}
+			return MakeASTNodeEx(A_Increment, node->type, node, NULL, rhs, FlexInt(1), FlexInt(size), NULL);
 		}
 		case T_MinusMinus:{
 			GetToken();
-			ASTNode* ref = ParsePrimary();
-			if(ref->op != A_VarRef)			FatalM("The decrement prefix operator '--' may only be used before a variable name!", Line);
-			if(ref->type == P_Composite)	FatalM("Composite decrements not supported!", Line);
-			return MakeASTUnary(A_Decrement, ref, FlexInt(1), NULL);
+			ASTNode* node = ParseFactor();
+			if(!node->lvalue)				FatalM("The decrement prefix operator '--' may only be used before an lvalue!", Line);
+			if(node->type == P_Composite)	FatalM("Composite decrements not supported!", Line);
+			int size = 0;
+			ASTNode* rhs = NULL;
+			if(node->type & 0xF){
+				size = GetTypeSize(node->type - 1, node->cType);
+				rhs = MakeASTBinary(A_AssignDifference, node->type, node, MakeASTLeaf(A_LitInt, P_LongLong, FlexInt(size)), FlexNULL());
+			}
+			return MakeASTNodeEx(A_Decrement, node->type, node, NULL, rhs, FlexInt(1), FlexInt(size), NULL);
 		}
 		case T_Ampersand:{
 			GetToken();

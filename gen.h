@@ -10,6 +10,7 @@ static DbLnkList* bss_vars = NULL;
 static const char* GenExpressionAsm(ASTNode* node);
 static const char* GenStatementAsm(ASTNode* node);
 static const char* GenerateAsmFromList(ASTNodeList* list);
+static const char* GenCompoundAssignment(ASTNode* node);
 
 struct {
 	int lbreak;
@@ -499,6 +500,17 @@ static const char* GenAssignment(ASTNode* node){
 static const char* GenIncDec(ASTNode* node){
 	if(node == NULL)										FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
 	if(node->op != A_Increment && node->op != A_Decrement)	FatalM("Expected increment or decrement in expression! (In gen.h)", __LINE__);
+	if(node->secondaryValue.intVal){
+		if(node->secondaryValue.intVal < 0)	FatalM("Increment / decrement scale amount was negative! (Internal @ gen.h)", __LINE__);
+		if(node->rhs == NULL)				FatalM("RHS of scaled increment was NULL! (Internal @ gen.h)", __LINE__);
+		if(node->value.intVal)
+			return GenCompoundAssignment(node->rhs);
+		char* val = _strdup(GenExpressionAsm(node->lhs));
+		strapp(&val, "	push	%rax\n");
+		strapp(&val, GenCompoundAssignment(node->rhs));
+		strapp(&val, "	pop		%rax\n");
+		return val;
+	}
 	switch(node->lhs->op){
 		case A_VarRef:{
 			const char* move = "	movq	%s,	%%rax\n";
@@ -521,10 +533,6 @@ static const char* GenIncDec(ASTNode* node){
 		case A_Dereference:{
 			ASTNode* innerNode = node->lhs->lhs;
 			if(innerNode == NULL)	FatalM("Expected inner node, got NULL instead! (Internal @ gen.h)", __LINE__);
-			if(innerNode->op == A_VarRef){
-				node->lhs = innerNode;
-				return GenIncDec(node);
-			}
 			const char* format = 
 				"%s"	// ASM of dereference's lhs
 				"	movq	%%rax,	%%rcx\n"	// clear %rax for return
