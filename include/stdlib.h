@@ -18,6 +18,7 @@ typedef struct ldiv_t ldiv_t;
 int atoi(char *str);
 long atol(char *str);
 long atoll(char *str);
+long long strtoll(const char* _String, char** _EndPtr, int _Radix);
 void *calloc(size_t nitems, size_t size);
 void free(void *ptr);
 void* malloc(size_t size);
