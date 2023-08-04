@@ -5,6 +5,7 @@
 #include "types.h"
 #include "globals.h"
 
+Token* PeekToken();
 Token* GetToken();
 
 static Token* Tokenize(const char* str){
@@ -96,6 +97,7 @@ static Token* Tokenize(const char* str){
 			if(*end){
 				FatalM("Invalid integer literal!", Line);
 			}
+			#ifndef __SCC__
 			if(errno == ERANGE){
 				WarnM("Integer literal too big!", Line);
 				long long i = 0;
@@ -106,6 +108,7 @@ static Token* Tokenize(const char* str){
 				} while(isdigit(*++buff));
 				token->value.intVal = i;
 			}
+			#endif
 		}
 		else if(str[0] == '\''){
 			if(str[2] != '\'' && str[1] != '\\')	FatalM("Invalid character literal!", Line);

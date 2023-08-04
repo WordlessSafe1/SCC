@@ -259,6 +259,7 @@ ASTNodeList* MakeASTNodeList(){
 	list->size = 10;
 	list->nodes = malloc(list->size * sizeof(ASTNode*));
 	list->count = 0;
+	return list;
 }
 
 ASTNodeList* AddNodeToASTList(ASTNodeList* list, ASTNode* node){
@@ -284,6 +285,9 @@ ASTNode* MakeASTNodeEx(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, 
 	node->list = NULL;
 	node->cType = cType;
 	switch(op){
+		case A_FunctionCall:
+			node->lvalue = (type & 0xF) && ((type & 0xF0) == P_Composite);
+			break;
 		case A_VarRef:
 		case A_Dereference:		node->lvalue = true;	break;
 		default:				node->lvalue = false;	break;
@@ -310,6 +314,7 @@ ASTNode* MakeASTUnary(int op, ASTNode* lhs, FlexibleValue value, SymEntry* cType
 ASTNode* MakeASTList(int op, ASTNodeList* list, FlexibleValue value){
 	ASTNode* node = MakeASTLeaf(op, P_Undefined, value);
 	node->list = list;
+	return node;
 }
 
 FlexibleValue FlexStr(const char* str){
@@ -338,7 +343,7 @@ int GetPrimSize(PrimordialType prim){
 	if(prim & 0xF)			return 8; // Pointer
 	switch(prim){
 		case P_Undefined:	return 0;
-		case P_Void:		return 0;
+		case P_Void:		return 1;
 		case P_Char:		return 1;
 		case P_Int:			return 4;
 		case P_Long:		return 4;
@@ -435,6 +440,7 @@ DbLnkList* MakeDbLnkList(void* val, DbLnkList* prev, DbLnkList* next){
 	l->val	= val;
 	l->prev	= prev;
 	l->next	= next;
+	return l;
 }
 
 SymEntry* GetMember(SymEntry* structDef, const char* member){

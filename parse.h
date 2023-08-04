@@ -182,7 +182,7 @@ ASTNode* ParseVariableReference(Token* outerTok){
 ASTNode* ParseBase(){
 	Token* tok = GetToken();
 	switch(tok->type){
-		case T_Identifier:
+		case T_Identifier:{
 			if(PeekToken()->type == T_OpenParen)
 				return ParseFunctionCall(tok);
 			ASTNode* varRef = ParseVariableReference(tok);
@@ -193,6 +193,7 @@ ASTNode* ParseBase(){
 				return MakeASTLeaf(A_LitInt, enumVal->value.intVal <= 255 ? P_Char : P_Int, enumVal->value);
 			FatalM("Unknown identifier!", Line);
 			break;
+		}
 		case T_OpenParen:{
 			ASTNode* expr = ParseExpression();
 			if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis!", Line);
@@ -559,7 +560,7 @@ ASTNode* ParseConditionalExpression(){
 	ASTNode* then = PeekToken()->type == T_Colon ? NULL : ParseExpression();
 	if(GetToken()->type != T_Colon)			FatalM("Expected colon ':' in conditional expression!", Line);
 	ASTNode* otherwise = ParseConditionalExpression();
-	PrimordialType type = NodeWidestType((then != NULL ? then : condition), otherwise);
+	PrimordialType type = GetWidestType((then != NULL ? then->type : condition->type), otherwise->type);
 	if(type == P_Undefined)					FatalM("Types of expression members are incompatible!", Line);
 	return MakeASTNode(A_Ternary, type, condition, then, otherwise, FlexNULL(), NULL);
 }
@@ -641,11 +642,11 @@ ASTNode* ParseDeclaration(){
 		if(expr->op != A_LitInt)	FatalM("Non-constant expression in global varibale declaration!", Line);
 		int typeSize = GetTypeSize(type, cType);
 		if(typeSize < 8) // If expression result is too large to fit in variable, truncate it
-			if(expr->value.intVal >= ((unsigned long long)1 << (8 * typeSize)))
-				expr->value.intVal &= ((unsigned long long)1 << (8 * typeSize)) - 1;
-				ASTNode* n = MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(sc), cType);
-				n->sClass = sc;
-				return n;
+			if(expr->value.intVal >= ((long long)1 << (8 * typeSize)))
+				expr->value.intVal &= ((long long)1 << (8 * typeSize)) - 1;
+		ASTNode* n = MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(sc), cType);
+		n->sClass = sc;
+		return n;
 	}
 	ASTNode* n = MakeASTNodeEx(A_Declare, type, expr, NULL, NULL, FlexStr(id), FlexInt(sc), cType);
 	n->sClass = sc;
@@ -860,7 +861,7 @@ ASTNode* ParseFunction(){
 		while (params->prev != NULL)
 			params = params->prev;
 	if(GetToken()->type != T_CloseParen)	FatalM("Invalid function declaration; Expected close parenthesis ')'.", Line);
-	InsertFunc(idStr, FlexPtr(params), type, NULL);
+	InsertFunc(idStr, FlexPtr(params), type, cType);
 	if(PeekToken()->type == T_Semicolon){
 		GetToken();
 		ASTNode* n = MakeASTNodeEx(A_Function, type, NULL, NULL, NULL, FlexStr(idStr), FlexPtr(params), cType);

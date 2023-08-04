@@ -1,10 +1,15 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
+#include <stdio.h>
+// #include <stdarg.h>
 #include <ctype.h>
 #include <string.h>
-#include <math.h>
-#include <io.h>
+#ifdef __GNUC__
+	#include <unistd.h>
+	#ifndef __SCC__
+		#include <io.h>
+	#endif
+#endif
+
 #include <errno.h>
 
 #include "defs.h"
@@ -37,7 +42,7 @@ void Usage(char* file){
 		"	-t Dump the Abstract Syntax Trees for each file\n"
 		"	-c Assemble the files, but do not link them\n"
 		"	-o outfile, produce the outfile executable file\n"
-		"	-isystem includes, pecify an alternate locaton for the standard headers\n"
+		"	-isystem includes, specify an alternate locaton for the standard headers\n"
 	;
 	printf(format, file);
 	exit(0);
@@ -49,7 +54,6 @@ int main(int argc, char** argv){
 	const char* outputTarget = NULL; 
 	const char** inputTargets = calloc(MAXFILES, sizeof(char*));
 	int inputs = 0;
-	int i = 0;
 	bool dump		= false;
 	bool print		= false;
 	bool supIntl	= false;
@@ -89,7 +93,7 @@ int main(int argc, char** argv){
 	if(outputTarget == NULL && !dump)	outputTarget = "a.out";
 	for(int i = 0; i < inputs; i++){
 		curFile = inputTargets[i];
-		const char* format = "cpp.exe -nostdinc -isystem %s %s -o %s";
+		const char* format = "cpp.exe -D __SCC__ -nostdinc -isystem %s %s -o %s";
 		target = AlterFileExtension(inputTargets[i], "tmp_ppc");
 		int charCount = strlen(format) + strlen(incDir) + strlen(inputTargets[i]) + strlen(target) + 1;
 		char* cmd = malloc(charCount * sizeof(char));
@@ -106,7 +110,7 @@ int main(int argc, char** argv){
 			AddNodeToASTList(ast, ParseNode());
 		if(GetToken() != NULL)	FatalM("Expected EOF!", Line);
 		fclose(fptr);
-		_unlink(target);
+		unlink(target);
 		free(target);
 		target = NULL;
 		Line = NOLINE;
@@ -142,7 +146,7 @@ int main(int argc, char** argv){
 		}
 		if(output == NULL){
 			output = AlterFileExtension(inputTargets[i], "s");
-			if(!_access(output, 0))
+			if(!access(output, 0))
 				output = inputTargets[i] = AlterFileExtension(inputTargets[i], "tmp_s");
 		}
 		fptr = fopen(output, "w");
@@ -156,7 +160,7 @@ int main(int argc, char** argv){
 			char* cmd = malloc(charCount * sizeof(char));
 			snprintf(cmd, charCount * sizeof(char), format, outfilename, output);
 			system(cmd);
-			_unlink(output);
+			unlink(output);
 			free(outfilename);
 			free(cmd);
 		}
@@ -180,7 +184,7 @@ int main(int argc, char** argv){
 		system(cmd);
 		for(int i = 0; i < inputs; i++){
 			char* targ = AlterFileExtension(inputTargets[i], "o");
-			_unlink(targ);
+			unlink(targ);
 			free(targ);
 		}
 	}
@@ -206,7 +210,7 @@ void FatalM(const char* msg, int line){
 	if (fptr != NULL)
 		fclose(fptr);
 	if(target != NULL){
-		_unlink(target);
+		unlink(target);
 		free(target);
 	}
 	exit(-1);
@@ -250,7 +254,16 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_VarRef:				val = tree->value.strVal;	break;
 		case A_Assign:				val = tree->value.strVal == NULL ? "expr" : tree->value.strVal;	break;
 		case A_FunctionCall:		val = tree->value.strVal;	break;
-		case A_LitStr:				val = tree->value.strVal;	break;
+		case A_LitStr:
+			val = tree->value.strVal;
+			{
+				char* buffer = calloc(2, sizeof(char));
+				buffer[0] = '"';
+				strapp(&buffer, val);
+				strapp(&buffer, "\"");
+				val = buffer;
+			}
+			break;
 		case A_EnumValue: {
 			const int charCount = strlen(tree->value.strVal) + intlen(tree->secondaryValue.intVal) + (tree->value.intVal < 0) + 2 + 1;
 			char* buffer = malloc(charCount * sizeof(char));
@@ -388,20 +401,18 @@ char* strapp(char** lhs, const char* rhs){
 	return *lhs = buffer;
 }
 
-char* sngenf(int bufferSize, const char* format, ...){
-	char* buffer = malloc(bufferSize);
-	va_list args;
-	va_start(args, format);
-	vsnprintf(buffer, bufferSize, format, args);
-	va_end(args);
-	return buffer;
-}
+// char* sngenf(int bufferSize, const char* format, ...){
+// 	char* buffer = malloc(bufferSize);
+// 	va_list args;
+// 	va_start(args, format);
+// 	vsnprintf(buffer, bufferSize, format, args);
+// 	va_end(args);
+// 	return buffer;
+// }
 
-int intlen(long long i){
-	int l = 0;
-	while(i){
-		l++;
-		i /= 10;
-	}
+int intlen(long long value){
+	int l = value < 1;
+	if(value < 0)	l++;
+	while(value){ l++; value/=10; }
 	return l;
 }

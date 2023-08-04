@@ -18,7 +18,7 @@ static SymEntry* MakeSymEntry(const char* key, FlexibleValue value, StructuralTy
 	ret->value = value;
 	ret->sType = sType;
 	return ret;
-};
+}
 
 static SymEntry* MakeTypedSymEntry(const char* key, PrimordialType type, SymEntry* cType, StructuralType sType) {
 	SymEntry* ret = malloc(sizeof(SymEntry));
@@ -27,7 +27,7 @@ static SymEntry* MakeTypedSymEntry(const char* key, PrimordialType type, SymEntr
 	ret->type = type;
 	ret->sType = sType;
 	return ret;
-};
+}
 
 static SymEntry* MakeVarEntry(const char* key, const char* val, PrimordialType type, SymEntry* cType, StorageClass sc){
 	SymEntry* ret = malloc(sizeof(SymEntry));

@@ -549,10 +549,10 @@ static const char* GenIncDec(ASTNode* node){
 
 static const char* GenCompoundAssignment(ASTNode* node){
 	if(node == NULL)	FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
-	const char* offset;
+	const char* offset = NULL;
 	const char* preface = GenExpressionAsm(node->rhs);
 	switch(node->lhs->op){
-		case A_Dereference:
+		case A_Dereference:{
 			char* buffer = _strdup(GenExpressionAsm(node->lhs->lhs));
 			strapp(&buffer, "	push	%rax\n"); // Deref's addr => stack
 			strapp(&buffer, preface);
@@ -560,6 +560,7 @@ static const char* GenCompoundAssignment(ASTNode* node){
 			preface = buffer;
 			offset = "(%r8)";
 			break;
+		}
 		case A_VarRef:{
 			const char* id = node->lhs->value.strVal;
 			
@@ -573,12 +574,12 @@ static const char* GenCompoundAssignment(ASTNode* node){
 	// val, op, mov -> offset
 	char* format = NULL;
 	const char* fb_format = NULL;
-	const char* reg_a;
-	const char* reg_c;
-	const char* reg_d;
-	char opc;
-	char opcl;
-	char nxopcl;
+	const char* reg_a	= NULL;
+	const char* reg_c	= NULL;
+	const char* reg_d	= NULL;
+	char opc			= '\0';
+	char opcl			= '\0';
+	char nxopcl			= '\0';
 	switch(GetTypeSize(node->lhs->type, node->lhs->cType)){
 		case 1:
 			reg_a	= "%%al";
@@ -620,7 +621,7 @@ static const char* GenCompoundAssignment(ASTNode* node){
 		case A_AssignDifference:	fb_format = "%%s	sub%c	%s,	%%s\n	mov%c	%%s,	%s\n";		break;
 		case A_AssignProduct:		fb_format = "%%s	imul%c	%%s,	%s\n	mov%c	%s,	%%s\n";		break;
 		case A_AssignBitwiseAnd:	fb_format = "%%s	and%c	%s,	%%s\n	mov%c	%%s,	%s\n";		break;
-		case A_AssignBitwiseXor:	fb_format = "%%s	xor%c	%s,	%%s\n	mov%c	%%s,	%s";		break;
+		case A_AssignBitwiseXor:	fb_format = "%%s	xor%c	%s,	%%s\n	mov%c	%%s,	%s\n";		break;
 		case A_AssignBitwiseOr:		fb_format = "%%s	or%c		%s,	%%s\n	mov%c	%%s,	%s\n";	break;
 		//endregion simple execution
 		case A_AssignQuotient:{
@@ -843,18 +844,19 @@ static const char* GenIfStatement(ASTNode* node){
 }
 
 static char* GenDeclaration(ASTNode* node){
-	if(node == NULL)									FatalM("Expected an AST Node, got NULL instead", Line);
-	if(node->op != A_Declare)							FatalM("Expected declaration!", Line);
-	if(FindLocalVar(node->value.strVal, scope) != NULL)	FatalM("Local variable redeclaration!", Line);
+	if(node == NULL)											FatalM("Expected an AST Node, got NULL instead", Line);
+	if(node->op != A_Declare)									FatalM("Expected declaration!", Line);
+	SymEntry* existing = FindLocalVar(node->value.strVal, scope);
+	if(existing != NULL && existing->sValue.intVal != C_Extern)	FatalM("Local variable redeclaration!", Line);
 	char* varLoc = malloc(10 * sizeof(char));
 	char* expr = "";
 	if(!scope){
 		// Global variable
 		free(varLoc);
 		const char* id = node->value.strVal;
-		varLoc = malloc((strlen(id) + 7) * sizeof(char));
-		snprintf(varLoc, strlen(id) + 7, "%s(%%rip)", id);
-		InsertVar(node->value.strVal, varLoc, node->type, node->cType, node->secondaryValue.intVal, scope);
+		varLoc = _strdup(id);
+		strapp(&varLoc, "(%rip)");
+		InsertVar(node->value.strVal, varLoc, node->type, node->cType, (StorageClass)node->secondaryValue.intVal, scope);
 		for(DbLnkList* bss = bss_vars; bss != NULL; bss = bss->next){
 			if(!streq(bss->val, id))
 				continue;
@@ -904,7 +906,10 @@ static char* GenDeclaration(ASTNode* node){
 		free(buffer);
 		return calloc(1, sizeof(char));
 	}
-	snprintf(varLoc, 10, "%d(%%rbp)", stackIndex[scope] -= GetTypeSize(node->type, node->cType));
+	{
+		int n = stackIndex[scope] -= GetTypeSize(node->type, node->cType);
+		snprintf(varLoc, 7 + intlen(n), "%d(%%rbp)", n);
+	}
 	if(node->lhs != NULL){
 		const char* rhs = GenExpressionAsm(node->lhs);
 		const char* format = "%s	movq	%%rax,	%s\n";
@@ -985,7 +990,7 @@ static const char* GenForLoop(ASTNode* node){
 	int lcontinue		= labels.lcontinue;
 	int localLabelPref	= labelPref++;
 	labels.lbreak		= (localLabelPref * 10) + 9;
-	labels.lcontinue	= localLabelPref * 10;
+	labels.lcontinue	= localLabelPref * 10 + 8;
 	const char* action	= GenStatementAsm(node->rhs);
 	labels.lbreak		= lbreak;
 	labels.lcontinue	= lcontinue;
@@ -996,6 +1001,7 @@ static const char* GenForLoop(ASTNode* node){
 		"0:\n"
 		"%s"				// Condition
 		"%s"				// Action
+		"%d8:\n"
 		"8:\n"
 		"%s"				// Modifier
 		"	jmp		%d0b\n"
@@ -1004,7 +1010,7 @@ static const char* GenForLoop(ASTNode* node){
 		"%s"				// Deallocate Stack Space for vars
 	;
 	// Beyond this point, don't generate any more ASM using other functions
-	int stackSize = GetLocalVarCount(scope) * 8;
+	int stackSize = align(GetLocalVarCount(scope) * 8, 16);
 	char* stackAlloc = malloc(1 * sizeof(char));
 	*stackAlloc = '\0';
 	char* stackDealloc = malloc(1 * sizeof(char));
@@ -1075,7 +1081,7 @@ static char* GenSwitch(ASTNode* node){
 	int lbreak = labels.lbreak;
 	labels.lbreak = (localLabelPref * 10) + 9;
 	const char* caseFrmt = "L%d:\n" "%s";
-	const char* jmpFrmt = "	.quad	%lld,	L%d\n";
+	const char* jmpFrmt = "	.quad	%d,	L%d\n";
 	for(int i = 0; i < childCount; i++){
 		ASTNode* inner = list->nodes[i];
 		caseLabel[i] = lVar++;
@@ -1140,7 +1146,7 @@ static const char* GenBlockAsm(ASTNode* node){
 	if(!node->list->count)			return "";
 	EnterScope();
 	const char* statementAsm = GenerateAsmFromList(node->list);
-	int stackSize = align(GetLocalStackSize(scope), 8);
+	int stackSize = align(GetLocalStackSize(scope), 16);
 	char* stackAlloc = calloc(1, sizeof(char));
 	char* stackDealloc = calloc(1, sizeof(char));
 	if(stackSize){
@@ -1156,8 +1162,8 @@ static const char* GenBlockAsm(ASTNode* node){
 		snprintf(stackDealloc, len, format, stackSize);
 	}
 	int charCount =
+		strlen(stackAlloc)		// Stack Allocation ASM
 		+ strlen(statementAsm)	// Inner ASM
-		+ strlen(stackAlloc)	// Stack Allocation ASM
 		+ strlen(stackDealloc)	// Stack Deallocation ASM
 		+ 1						// '\0'
 	;
@@ -1170,7 +1176,7 @@ static const char* GenBlockAsm(ASTNode* node){
 }
 
 static char* GenStructDecl(ASTNode* node){
-	SymList* list = InsertStruct(node->value.strVal, MakeCompMembers(node->list));
+	InsertStruct(node->value.strVal, MakeCompMembers(node->list));
 	if(node->lhs == NULL)				return calloc(1, sizeof(char));
 	if(node->lhs->op != A_Declare)		FatalM("Expected child node of struct to be declaration! (In gen.h)", __LINE__);
 	return GenDeclaration(node->lhs);
@@ -1328,6 +1334,10 @@ char* GenerateAsm(ASTNodeList* node){
 			"	cld\n"					// Clear direction flag
 			"	lodsq\n"				// Case Count => %rax AND increment %rsi
 			"	movq	%rax,	%rcx\n"	// Case Count => %rcx
+			"	cmp		$0,		%rcx\n"	// Check if there are 0 cases except default
+			"	jne		1f\n"			// If cases exist, enter start of loop
+			"	inc		%rcx\n"			// Else, set cases to 1
+			"	jmp		2f\n"			// Then jump to end of loop
 			"1:\n"						// Start of loop
 			"	lodsq\n"				// Case Value => %rax
 			"	movq	%rax,	%rdx\n"	// Case Value => %rdx

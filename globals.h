@@ -3,7 +3,7 @@
 	#undef init
 #endif
 #ifdef INIT_VARS
-	#define init(val) = val;
+	#define init(val) = val
 #else
 	#define init(val)
 #endif
@@ -18,12 +18,18 @@ extern_main int switchDepth init(0);
 extern_main int loopDepth init(0);
 extern_main bool USE_SUB_SWITCH init(false);
 
-extern_main void FatalM(const char*, int);
-extern_main void WarnM(const char*, int);
+extern_main void FatalM(const char* msg, int line);
+extern_main void WarnM(const char* msg, int line);
 
 extern_main char* strjoin(const char* lhs, const char* rhs);
 // Append the rhs string to the string referenced by lhs
 // - Frees the string referenced by lhs
 extern_main char* strapp(char** lhs, const char* rhs);
 extern_main char* sngenf(int bufferSize, const char* format, ...);
-extern_main int intlen(long long i);
+extern_main int intlen(long long value);
+
+#ifndef __GNUC__
+	#define access	_access
+	#define exit	_exit
+	#define unlink	_unlink
+#endif
