@@ -1,5 +1,4 @@
 #include <string.h>
-#include <math.h>
 
 #include "defs.h"
 #include "types.h"
@@ -128,7 +127,8 @@ static const char* GenFuncCall(ASTNode* node){
 			}
 		}
 		const int charCount = strlen(inner) + strlen(format) + strlen(pos) + 1;
-		char* buffer = sngenf(charCount, format, inner, pos);
+		char* buffer = malloc(charCount * sizeof(char));
+		snprintf(buffer, charCount, format, inner, pos);
 		strapp(&paramInit, buffer);
 		free(pos);
 		free(buffer);
@@ -247,7 +247,10 @@ static char* GenCast(ASTNode* node){
 		default:	FatalM("Unhandled cast type size! (Internal @ gen.h)", __LINE__);
 	}
 	const char* expr = GenExpressionAsm(node->lhs);
-	return sngenf(strlen(expr) + strlen(format) + 1, format, expr);
+	int charCount = strlen(expr) + strlen(format) + 1;
+	char* buffer = malloc(charCount * sizeof(char));
+	snprintf(buffer, charCount, format, expr);
+	return buffer;
 }
 
 static const char* GenUnary(ASTNode* node){
@@ -506,9 +509,12 @@ static const char* GenIncDec(ASTNode* node){
 			if(var == NULL)	FatalM("Variable not defined!", Line);
 			const char* location = var->value.strVal;
 			int fb_charCount = strlen(action) + strlen(move) + 1;
-			char* format = node->value.intVal ? sngenf(fb_charCount, formatBuilder, action, move) : sngenf(fb_charCount, formatBuilder, move, action);
+			char* format = malloc(fb_charCount * sizeof(char));
+			if(node->value.intVal)	snprintf(format, fb_charCount, formatBuilder, action, move);
+			else					snprintf(format, fb_charCount, formatBuilder, move, action);
 			int charCount = strlen(format) + (2 * strlen(location));
-			char* str = sngenf(charCount, format, location, location);
+			char* str = malloc(charCount * sizeof(char));
+			snprintf(str, charCount, format, location, location);
 			free(format);
 			return str;
 		}
@@ -540,7 +546,10 @@ static const char* GenIncDec(ASTNode* node){
 			}
 			const char* inner = GenExpressionAsm(innerNode);
 			int charCount = strlen(action) + strlen(move) + strlen(format) + strlen(inner) + 1;
-			return node->value.intVal ? sngenf(charCount, format, inner, action, move) : sngenf(charCount, format, inner, move, action);
+			char* ret = malloc(charCount * sizeof(char));
+			if(node->value.intVal)	snprintf(ret, charCount, format, inner, action, move);
+			else					snprintf(ret, charCount, format, inner, move, action);
+			return ret;
 		}
 		default:
 			FatalM("Unsupported lvalue in increment / decrement!", Line);
@@ -887,7 +896,9 @@ static char* GenDeclaration(ASTNode* node){
 				case 8:		format = "%s:\n	.quad	%lld\n"; break;
 				default:	FatalM("Unsupported type size! (Internal @ gen.h)", __LINE__);
 			}
-			char* buffer = sngenf(strlen(format) + strlen(id) + intlen(node->lhs->value.intVal) + 1, format, id, node->lhs->value.intVal);
+			int charCount = strlen(format) + strlen(id) + intlen(node->lhs->value.intVal) + 1;
+			char* buffer = malloc(charCount * sizeof(char));
+			snprintf(buffer, charCount, format, id, node->lhs->value.intVal);
 			strapp(&data_section, buffer);
 			free(buffer);
 			return calloc(1, sizeof(char));
@@ -1037,9 +1048,9 @@ static const char* GenForLoop(ASTNode* node){
 		snprintf(buffer, charCount, condCheck, condition, localLabelPref);
 		condition = buffer;
 	}
-	int charCount = strlen(stackAlloc) + strlen(initializer) + strlen(modifier) + strlen(format) + strlen(condition) + strlen(action) + (3 * intlen(localLabelPref)) + strlen(stackDealloc) + 1;
+	int charCount = strlen(stackAlloc) + strlen(initializer) + strlen(modifier) + strlen(format) + strlen(condition) + strlen(action) + (4 * intlen(localLabelPref)) + strlen(stackDealloc) + 1;
 	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, format, stackAlloc, initializer, localLabelPref, condition, action, modifier, localLabelPref, localLabelPref, stackDealloc);
+	snprintf(str, charCount, format, stackAlloc, initializer, localLabelPref, condition, action, localLabelPref, modifier, localLabelPref, localLabelPref, stackDealloc);
 	free((void*)condition);
 	free(stackAlloc);
 	ExitScope();
@@ -1087,7 +1098,9 @@ static char* GenSwitch(ASTNode* node){
 		caseLabel[i] = lVar++;
 		caseValue[i] = inner->value.intVal;
 		const char* innerASM = GenerateAsmFromList(inner->list);
-		char* caseASM = sngenf(strlen(caseFrmt) + intlen(caseLabel[i]) + strlen(innerASM) + 1, caseFrmt, caseLabel[i], innerASM);
+		int caseCharCount = strlen(caseFrmt) + intlen(caseLabel[i]) + strlen(innerASM) + 1;
+		char* caseASM = malloc(caseCharCount * sizeof(char));
+		snprintf(caseASM, caseCharCount, caseFrmt, caseLabel[i], innerASM);
 		strapp(&casesASM, caseASM);
 		free(caseASM);
 		if(inner->op == A_Default){
@@ -1095,17 +1108,23 @@ static char* GenSwitch(ASTNode* node){
 			caseCount--;
 			continue;
 		}
-		char* jmpASM = sngenf(strlen(jmpFrmt) + intlen(caseValue[i]) + intlen(caseLabel[i]) + 1, jmpFrmt, caseValue[i], caseLabel[i]);
+		int charCount = strlen(jmpFrmt) + intlen(caseValue[i]) + intlen(caseLabel[i]) + 1;
+		char* jmpASM = malloc(charCount * sizeof(char));
+		snprintf(jmpASM, charCount, jmpFrmt, caseValue[i], caseLabel[i]);
 		strapp(&tableASM, jmpASM);
 		free(jmpASM);
 	}
 	labels.lbreak = lbreak;
-	char* tablePreASM = sngenf(strlen(declLabelFormat) + intlen(lJmp) + intlen(caseCount) + 1, declLabelFormat, lJmp, caseCount);
+	int tpCharCount = strlen(declLabelFormat) + intlen(lJmp) + intlen(caseCount) + 1;
+	char* tablePreASM = malloc(tpCharCount * sizeof(char));
+	snprintf(tablePreASM, tpCharCount, declLabelFormat, lJmp, caseCount);
 	strapp(&tablePreASM, tableASM);
 	free(tableASM);
 	tableASM = tablePreASM;
 	const char* defFrmt = "	.quad	L%d\n";
-	char* defJmpLbl = sngenf(strlen(jmpFrmt) + intlen(lDef) + 1, defFrmt, lDef);
+	int djCharCount = strlen(jmpFrmt) + intlen(lDef) + 1;
+	char* defJmpLbl = malloc(djCharCount * sizeof(char));
+	snprintf(defJmpLbl, djCharCount, defFrmt, lDef);
 	strapp(&tableASM, defJmpLbl);
 	free(defJmpLbl);
 	int charCount = 
@@ -1121,7 +1140,8 @@ static char* GenSwitch(ASTNode* node){
 		+ intlen(localLabelPref)
 		+ 1
 	;
-	char* ret = sngenf(charCount, format, exprAsm, lTop, casesASM, lEnd, tableASM, lTop, lJmp, lEnd, localLabelPref);
+	char* ret = malloc(charCount * sizeof(char));
+	snprintf(ret, charCount, format, exprAsm, lTop, casesASM, lEnd, tableASM, lTop, lJmp, lEnd, localLabelPref);
 	free(casesASM);
 	free(tableASM);
 	return ret;
@@ -1129,14 +1149,20 @@ static char* GenSwitch(ASTNode* node){
 
 static const char* GenContinue(ASTNode* node){
 	if(labels.lcontinue == -1)	FatalM("A 'continue' statement may only be used inside of a loop!", Line);
-	const char* format = "jmp		%df\n";
-	return sngenf(strlen(format) + intlen(labels.lcontinue) + 1, format, labels.lcontinue);
+	const char* format = "	jmp		%df\n";
+	int charCount = strlen(format) + intlen(labels.lcontinue) + 1;
+	char* buffer = malloc(charCount * sizeof(char));
+	snprintf(buffer, charCount, format, labels.lcontinue);
+	return buffer;
 }
 
 static char* GenBreak(ASTNode* node){
 	if(labels.lbreak == -1)		FatalM("A 'break' statement may only be used inside of a switch or loop!", Line);
-	const char* format = "jmp		%df\n";
-	return sngenf(strlen(format) + intlen(labels.lbreak) + 1, format, labels.lbreak);
+	const char* format = "	jmp		%df\n";
+	int charCount = strlen(format) + intlen(labels.lbreak) + 1;
+	char* buffer = malloc(charCount * sizeof(char));
+	snprintf(buffer, charCount, format, labels.lbreak);
+	return buffer;
 }
 
 static const char* GenBlockAsm(ASTNode* node){
@@ -1221,7 +1247,9 @@ static const char* GenFunctionAsm(ASTNode* node){
 	if(node->sClass != C_Static){
 		free(globl);
 		const char* format = "	.globl	%s\n";
-		globl = sngenf(strlen(format) + strlen(node->value.strVal) + 1, format, node->value.strVal);
+		int charCount = strlen(format) + strlen(node->value.strVal) + 1;
+		globl = malloc(charCount * sizeof(char));
+		snprintf(globl, charCount, format, node->value.strVal);
 	}
 	const char* format = 
 		"%s"						// Global Identifier (If applicable)
