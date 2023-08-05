@@ -614,7 +614,7 @@ ASTNode* ParseAssignmentExpression(){
 	}
 	if(IsPointer(lhs->type))
 		if(nt == A_AssignSum || nt == A_AssignDifference)	rhs = ScaleNode(rhs, lhs->type);
-		else												FatalM("Invalid operands to compound assignment!", Line);
+		else if(nt != A_Assign)								FatalM("Invalid operands to compound assignment!", Line);
 	// PrimordialType type = NodeWidestType(lhs, rhs);
 	// if(type == P_Undefined)					FatalM("Types of expression members are incompatible!", Line);
 	return MakeASTBinary(nt, type, lhs, rhs, FlexNULL());
