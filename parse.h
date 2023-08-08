@@ -70,12 +70,12 @@ PrimordialType ParseType(StorageClass* sc){
 }
 
 PrimordialType PeekTypeN(int n){
-	for(int i = 0; i < n; i++)
-		if(ShiftToken() == NULL)
-			break;
 	fpos_t* fpos = malloc(sizeof(fpos_t));
 	int ln = Line;
 	fgetpos(fptr, fpos);
+	for(int i = 0; i < n; i++)
+		if(ShiftToken() == NULL)
+			break;
 	PrimordialType t = ParseType(NULL);
 	fsetpos(fptr, fpos);
 	free(fpos);
