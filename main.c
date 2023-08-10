@@ -345,12 +345,16 @@ char* DumpASTTree(ASTNode* tree, int depth){
 	const char* type = calloc(1, sizeof(char));
 	switch(tree->type & 0xF0){
 		case P_Undefined:	break;
-		case P_Void:		type = "void";		break;
-		case P_Char:		type = "char";		break;
-		case P_Int:			type = "int";		break;
-		case P_Long:		type = "long";		break;
-		case P_LongLong:	type = "long long";	break;
-		case P_Composite:	type = "struct";	break;
+		case P_Void:		type = "void";					break;
+		case P_Char:		type = "char";					break;
+		case P_Int:			type = "int";					break;
+		case P_Long:		type = "long";					break;
+		case P_LongLong:	type = "long long";				break;
+		case P_UChar:		type = "unsigned char";			break;
+		case P_UInt:		type = "unsigned int";			break;
+		case P_ULong:		type = "unsigned long";			break;
+		case P_ULongLong:	type = "unsigned long long";	break;
+		case P_Composite:	type = "struct";				break;
 	}
 	if(tree->type & 0x0F){
 		int deref = tree->type & 0x0F;

@@ -22,6 +22,7 @@ PrimordialType GetType(Token* t){
 PrimordialType ParseType(StorageClass* sc){
 	PrimordialType type;
 	Token* tok = PeekToken();
+	bool isUnsigned = false;
 	// If SC is NULL, then storage classes are not supported; Parsing should be skipped in order to force a fail later on.
 	if(sc != NULL){
 		switch(tok->type){
@@ -36,11 +37,18 @@ PrimordialType ParseType(StorageClass* sc){
 			default:		break;
 		}
 	}
+	if(PeekToken()->type == T_Unsigned){
+		GetToken();
+		tok = PeekToken();
+		isUnsigned = true;
+	}
 	switch(tok->type){
 		case T_Identifier:{
 			SymEntry* tdef = FindGlobal(tok->value.strVal, S_Typedef);
 			if(tdef == NULL)				return P_Undefined;
-			if((tdef->type & 0xF0) == P_Composite)	return P_Composite;
+			if((tdef->type & 0xF0) == P_Composite)	
+				if(isUnsigned)				FatalM("Unsigned is not valid for composite types!", Line);
+				else						return P_Composite;
 			type = tdef->type;
 			break;
 		}
@@ -57,9 +65,13 @@ PrimordialType ParseType(StorageClass* sc){
 			break;
 		case T_Enum:
 		case T_Union:
-		case T_Struct:		return P_Composite;	// Structs must be parsed with ParseCompRef()
+		case T_Struct:
+			if(isUnsigned)	FatalM("Unsigned is not valid for composite types!", Line);
+			return P_Composite;	// Structs must be parsed with ParseCompRef()
 		default:			return P_Undefined;
 	}
+	if(isUnsigned)
+		type += P_UNSIGNED_DIFF;
 	GetToken();
 	while(PeekToken()->type == T_Asterisk){
 		GetToken();

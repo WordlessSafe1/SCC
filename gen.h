@@ -153,10 +153,20 @@ static const char* GenVarRef(ASTNode* node){
 	SymEntry* var = FindVar(id, scope);
 	if(var == NULL)				FatalM("Variable not defined!", Line);
 	const char* format = NULL;
+	bool isUnsigned = IsUnsigned(node->type);
 	switch(GetTypeSize(var->type, var->cType)){
-		case 1:		format = "	movzbq	%s,	%%rax\n";	break;
-		case 2:		format = "	movzwq	%s,	%%rax\n";	break;
-		case 4:		format = "	movslq	%s,	%%rax\n";	break;
+		case 1:		format = isUnsigned 
+						? "	movzbq	%s,	%%rax\n"
+						: "	movsbq	%s,	%%rax\n";
+					break;
+		case 2:		format = isUnsigned 
+						? "	movzwq	%s,	%%rax\n"
+						: "	movswq	%s,	%%rax\n";
+					break;
+		case 4:		format = isUnsigned
+						? "	movl	%s,	%%eax\n"
+						: "	movslq	%s,	%%rax\n";
+					break;
 		case 8:		format = "	movq	%s,	%%rax\n";	break;
 		default:	format = "	movq	%s,	%%rax\n";	break;
 	};
@@ -316,22 +326,18 @@ static const char* GenRTLBinary(ASTNode* node){
 	const char* pushInstr	= "	push	%rax\n";
 	const char* popInstr	= "	pop		%rcx\n";
 	const char* instr = NULL;
+	bool isUnsigned = IsUnsigned(node->lhs->type) || IsUnsigned(node->rhs->type);
 	switch(node->op){
 		case A_Subtract:	instr = "	subq	%rcx,	%rax\n";	break;
 		case A_LeftShift:	instr = "	shl		%rcx,	%rax\n";	break;
 		case A_RightShift:	instr = "	sar		%rcx,	%rax\n";	break;
 		case A_Divide:
-			instr =
-				"	cqo\n"
-				"	idiv	%rcx\n"
-			;
+			instr = isUnsigned ? "	movq	$0,	%rdx\n	divq	%rcx\n" : "	cqo\n""	idiv	%rcx\n";
 			break;
 		case A_Modulo:
-			instr =
-				"	cqo\n"
-				"	idiv	%rcx\n"
-				"	movq	%rdx,	%rax\n"
-			;
+			instr = isUnsigned
+				? "	movq	$0,	%rdx\n	divq	%rcx\n	movq	%rdx,	%rax\n"
+				: "	cqo\n""	idiv	%rcx\n""	movq	%rdx,	%rax\n";
 			break;
 		case A_LessThan:
 			instr =

@@ -37,7 +37,7 @@
 							| <base> "->" <id> | <factor> '.' <id> | <string_literal> | <int>
 <function_call>			::= <id> '(' [ <expression> { ',' <expression> } ] ')'
 <storage_class>			::= "extern" | "static"
-<type>					::= <type> '*' | "void" | "char" | "int" | "long" | ( "struct" | "union" | "enum" ) <id> | <id> # <id> WHERE id is prior typedef
+<type>					::= <type> '*' | "void" | [ "unsigned" ] ( "char" | "int" | "long" ) | ( "struct" | "union" | "enum" ) <id> | <id> # <id> WHERE id is prior typedef
 <unary_op>				::= '~' | '!' | '-' | '*' | '&'
 <compound_assign_op>	::= '+' | '-' | '*' | '/' | '%' | "<<" | ">>" | '&' | '^' | '|'
 

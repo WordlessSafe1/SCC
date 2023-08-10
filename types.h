@@ -35,8 +35,12 @@ enum ePrimordialType {
 	P_Long		= 0x40,
 	P_LongLong	= 0x50,
 	P_Composite	= 0x60,
+	P_UChar		= 0x70,
+	P_UInt		= 0x80,
+	P_ULong		= 0x90,
+	P_ULongLong	= 0xA0,
 };
-
+#define P_UNSIGNED_DIFF (P_UChar - P_Char)
 enum eTokenCategory {
 	T_Undefined = 0,
 	T_Void,
@@ -111,6 +115,7 @@ enum eTokenCategory {
 	T_Default,
 	T_Sizeof,
 	T_Static,
+	T_Unsigned,
 };
 
 enum eNodeType {
@@ -344,9 +349,13 @@ int GetPrimSize(PrimordialType prim){
 	switch(prim){
 		case P_Undefined:	return 0;
 		case P_Void:		return 1;
+		case P_UChar:
 		case P_Char:		return 1;
+		case P_UInt:
 		case P_Int:			return 4;
+		case P_ULong:
 		case P_Long:		return 4;
+		case P_ULongLong:
 		case P_LongLong:	return 8;
 		default:			FatalM("Unhandled primordial in GetPrimSize()! (In types.h)", __LINE__);
 	}
@@ -361,6 +370,16 @@ int GetTypeSize(PrimordialType type, SymEntry* compositeType){
 				FatalM("Invalid use of incomplete type!", Line);
 			return compositeType->sValue.intVal;
 		default:	return GetPrimSize(type);
+	}
+}
+
+bool IsUnsigned(PrimordialType prim){
+	switch(prim){
+		case P_UChar:
+		case P_UInt:
+		case P_ULong:
+		case P_ULongLong:	return true;
+		default:			return false;
 	}
 }
 

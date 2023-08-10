@@ -198,7 +198,7 @@ int collisions = 0;
 static SymEntry* FindVarPosition(const char* key, int scope, bool strict){
 	if(hashArray[scope] == NULL)
 		return NULL;
-	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
+	unsigned int hash = hash_oaat(key, strlen(key)) % CAPACITY;
 	SymList* list = hashArray[scope][hash];
 	if (list == NULL)
 		if (scope < 1 || strict)	return NULL;
@@ -221,7 +221,7 @@ SymEntry* FindLocalVar(const char* key, int scope){
 
 SymList* InsertEnumName(const char* name){
 	if(name == NULL)	FatalM("No name supplied to InsertEnumName!", Line);
-	int hash = hash_oaat(name, strlen(name)) % CAPACITY;
+	unsigned int hash = hash_oaat(name, strlen(name)) % CAPACITY;
 	if(hashArray[0] == NULL)
 		return NULL;
 	SymList* list = hashArray[0][hash];
@@ -236,7 +236,7 @@ SymList* InsertEnumName(const char* name){
 
 SymList* InsertEnumValue(const char* name, int value){
 	if(name == NULL)	FatalM("No name supplied to InsertEnumValue!", Line);
-	int hash = hash_oaat(name, strlen(name)) % CAPACITY;
+	unsigned int hash = hash_oaat(name, strlen(name)) % CAPACITY;
 	if(hashArray[0] == NULL)
 		return NULL;
 	SymList* list = hashArray[0][hash];
@@ -250,7 +250,7 @@ SymList* InsertEnumValue(const char* name, int value){
 }
 
 SymList* InsertVar(const char* key, const char* value, PrimordialType type, SymEntry* cType, StorageClass sc, int scope){
-	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
+	unsigned int hash = hash_oaat(key, strlen(key)) % CAPACITY;
 	if(hashArray[scope] == NULL)
 		return NULL;
 	SymList* list = hashArray[scope][hash];
@@ -271,7 +271,7 @@ SymList* InsertVar(const char* key, const char* value, PrimordialType type, SymE
 }
 
 SymList* InsertFunc(const char* key, FlexibleValue params, PrimordialType type, SymEntry* cType){
-	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
+	unsigned int hash = hash_oaat(key, strlen(key)) % CAPACITY;
 	if(hashArray[0] == NULL)
 		return NULL;
 	SymList* list = hashArray[0][hash];
@@ -287,7 +287,7 @@ SymList* InsertFunc(const char* key, FlexibleValue params, PrimordialType type, 
 SymList* InsertStruct(const char* name, SymEntry* members){
 	if(name == NULL)
 		return MakeSymList(MakeStructEntry(NULL, members), NULL);
-	int hash = hash_oaat(name, strlen(name)) % CAPACITY;
+	unsigned int hash = hash_oaat(name, strlen(name)) % CAPACITY;
 	if(hashArray[0] == NULL)
 		return NULL;
 	SymList* list = hashArray[0][hash];
@@ -304,7 +304,7 @@ SymList* InsertStruct(const char* name, SymEntry* members){
 SymList* InsertUnion(const char* name, SymEntry* members){
 	if(name == NULL)
 		return MakeSymList(MakeUnionEntry(NULL, members), NULL);
-	int hash = hash_oaat(name, strlen(name)) % CAPACITY;
+	unsigned int hash = hash_oaat(name, strlen(name)) % CAPACITY;
 	if(hashArray[0] == NULL)
 		return NULL;
 	SymList* list = hashArray[0][hash];
@@ -321,7 +321,7 @@ SymList* InsertUnion(const char* name, SymEntry* members){
 SymList* InsertTypedef(const char* alias, PrimordialType type, SymEntry* cType){
 	if(alias == NULL)	FatalM("No alias supplied to InsertTypeDef! (Internal @ symTable.h)", __LINE__);
 	SymEntry* entry = MakeTypedSymEntry(alias, type, cType, S_Typedef);
-	int hash = hash_oaat(alias, strlen(alias)) % CAPACITY;
+	unsigned int hash = hash_oaat(alias, strlen(alias)) % CAPACITY;
 	if(hashArray[0] == NULL)
 		return NULL;
 	SymList* list = hashArray[0][hash];
@@ -366,7 +366,7 @@ SymList* UpdateUnion(SymList* list, const char* name, SymEntry* members){
 static SymEntry* FindGlobal(const char* key, StructuralType type){
 	if(hashArray[0] == NULL)
 		return NULL;
-	int hash = hash_oaat(key, strlen(key)) % CAPACITY;
+	unsigned int hash = hash_oaat(key, strlen(key)) % CAPACITY;
 	SymList* list = hashArray[0][hash];
 	if(list == NULL)
 		return NULL;

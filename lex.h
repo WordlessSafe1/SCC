@@ -87,6 +87,7 @@ static Token* Tokenize(const char* str){
 		else if(streq(str, "default"))	token->type = T_Default;
 		else if(streq(str, "sizeof"))	token->type = T_Sizeof;
 		else if(streq(str, "static"))	token->type = T_Static;
+		else if(streq(str, "unsigned"))	token->type = T_Unsigned;
 		else if(isdigit(str[0])){
 			token->type = T_LitInt;
 			char* end;
