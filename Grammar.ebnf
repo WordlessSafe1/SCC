@@ -32,9 +32,10 @@
 <additive_expr>			::= <term> { ( '+' | '-' ) <term> }
 <term>					::= <factor> { ( '*' | '/' | '%' ) <factor> }
 <factor>				::= <base> | <unary_op> <factor> | '(' <type> ')' <factor> | "sizeof" '(' <type> ')'
-							| ( "++" | "--" ) <id> | <id> ( "++" | "--" )
-<base>					::= <id> | <function_call> | <id> '[' <expression> ']' | <character_literal>
-							| <base> "->" <id> | <factor> '.' <id> | <string_literal> | <int>
+							| ( "++" | "--" ) <id>
+<primary>				::= <base> { <postfix> }
+<base>					::= <id> | <function_call> | <character_literal> | <string_literal> | <int>
+<postfix>				::= "++" | "--" | '[' <expression> ']' | ( "->" | '.' ) <id>
 <function_call>			::= <id> '(' [ <expression> { ',' <expression> } ] ')'
 <storage_class>			::= "extern" | "static"
 <type>					::= <type> '*' | "void" | [ "unsigned" ] ( "char" | "int" | "long" ) | ( "struct" | "union" | "enum" ) <id> | <id> # <id> WHERE id is prior typedef
