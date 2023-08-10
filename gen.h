@@ -763,13 +763,23 @@ static const char* GenCompoundAssignment(ASTNode* node){
 			}
 			break;
 		case A_AssignRightShift:{
-				const char* fb_format =
-					"%%s"						// preface
-					"	mov%c	%s,	%s\n"		// opc, reg_a, reg_c
-					"	mov%c	%%s,	%s\n"	// opc, reg_a
-					"	sar%c	%s, %s\n"		// opc, reg_c, reg_a
-					"	mov%c	%s,	%%s\n"		// opc, reg_a
-				;
+				const char* fb_format = NULL;
+				if(IsUnsigned(node->lhs->type))
+						fb_format =
+						"%%s"						// preface
+						"	mov%c	%s,	%s\n"		// opc, reg_a, reg_c
+						"	mov%c	%%s,	%s\n"	// opc, reg_a
+						"	shr%c	%s, %s\n"		// opc, reg_c, reg_a
+						"	mov%c	%s,	%%s\n"		// opc, reg_a
+					;
+				else
+					fb_format =
+						"%%s"						// preface
+						"	mov%c	%s,	%s\n"		// opc, reg_a, reg_c
+						"	mov%c	%%s,	%s\n"	// opc, reg_a
+						"	sar%c	%s, %s\n"		// opc, reg_c, reg_a
+						"	mov%c	%s,	%%s\n"		// opc, reg_a
+					;
 				int charCount =
 					strlen(fb_format)
 					+ (4 * sizeof(opc))
