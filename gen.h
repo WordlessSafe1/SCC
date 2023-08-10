@@ -3,6 +3,7 @@
 #include "defs.h"
 #include "types.h"
 
+static int unresolvedPushes = 0;
 static int labelPref = 9;
 static char* data_section;
 static DbLnkList* bss_vars = NULL;
@@ -134,6 +135,8 @@ static const char* GenFuncCall(ASTNode* node){
 		free(pos);
 		free(buffer);
 	}
+	if(unresolvedPushes % 2)
+		offset += 8;
 	const char* format =
 		"	subq	$%d,	%%rsp\n"
 		"%s"	// ParamInit
@@ -313,7 +316,9 @@ static const char* GenLTRBinary(ASTNode* node){
 			break;
 	}
 	const char* lhs = GenExpressionAsm(node->lhs);
+	unresolvedPushes++;
 	const char* rhs = GenExpressionAsm(node->rhs);
+	unresolvedPushes--;
 	int charCount = strlen(instr) + strlen(pushInstr) + strlen(popInstr) + strlen(lhs) + strlen(rhs) + 1;
 	char* str = malloc(charCount * sizeof(char));
 	snprintf(str, charCount, "%s%s%s%s%s", lhs, pushInstr, rhs, popInstr, instr);
@@ -368,7 +373,9 @@ static const char* GenRTLBinary(ASTNode* node){
 			;
 			break;
 	}
+	unresolvedPushes++;
 	const char* lhs = GenExpressionAsm(node->lhs);
+	unresolvedPushes--;
 	const char* rhs = GenExpressionAsm(node->rhs);
 	int charCount = strlen(instr) + strlen(pushInstr) + strlen(popInstr) + strlen(lhs) + strlen(rhs) + 1;
 	char* str = malloc(charCount * sizeof(char));
@@ -496,7 +503,9 @@ static const char* GenAssignment(ASTNode* node){
 		case 8:		instr = "	movq	%rax,	(%rcx)\n";	break;
 		default:	FatalM("Non-standard sizes not yet supported in assignments! (Internal @ gen.h)", __LINE__);
 	}
+	unresolvedPushes++;
 	const char* innerASM = GenExpressionAsm(node->rhs);
+	unresolvedPushes--;
 	const int charCount = strlen(format) + strlen(derefASM) + strlen(innerASM) + strlen(instr) + 1;
 	char* buffer = malloc(charCount * sizeof(char));
 	snprintf(buffer, charCount, format, derefASM, innerASM, instr);
@@ -513,7 +522,9 @@ static const char* GenIncDec(ASTNode* node){
 			return GenCompoundAssignment(node->rhs);
 		char* val = _strdup(GenExpressionAsm(node->lhs));
 		strapp(&val, "	push	%rax\n");
+		unresolvedPushes++;
 		strapp(&val, GenCompoundAssignment(node->rhs));
+		unresolvedPushes--;
 		strapp(&val, "	pop		%rax\n");
 		return val;
 	}
@@ -578,7 +589,9 @@ static const char* GenCompoundAssignment(ASTNode* node){
 		case A_Dereference:{
 			char* buffer = _strdup(GenExpressionAsm(node->lhs->lhs));
 			strapp(&buffer, "	push	%rax\n"); // Deref's addr => stack
+			unresolvedPushes++;
 			strapp(&buffer, preface);
+			unresolvedPushes--;
 			strapp(&buffer, "	pop		%r8\n"); // Load deref's addr => r8
 			preface = buffer;
 			offset = "(%r8)";
