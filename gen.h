@@ -342,7 +342,9 @@ static const char* GenRTLBinary(ASTNode* node){
 	switch(node->op){
 		case A_Subtract:	instr = "	subq	%rcx,	%rax\n";	break;
 		case A_LeftShift:	instr = "	shl		%rcx,	%rax\n";	break;
-		case A_RightShift:	instr = "	sar		%rcx,	%rax\n";	break;
+		case A_RightShift:
+			instr = IsUnsigned(node->lhs->type) ? "	shr		%rcx,	%rax\n" : "	sar		%rcx,	%rax\n";
+			break;
 		case A_Divide:
 			instr = isUnsigned ? "	movq	$0,	%rdx\n	divq	%rcx\n" : "	cqo\n""	idiv	%rcx\n";
 			break;

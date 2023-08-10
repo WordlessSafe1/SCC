@@ -399,8 +399,8 @@ ASTNode* ParseFactor(){
 				if(expr == NULL)		FatalM("Got NULL instead of expression! (Internal @ parse.h)", __LINE__);
 				// Still need to handle narrowing manually... :'(
 				if(expr->op == A_LitInt){
-					size_t maxValue = (size_t)~0 >> 8 * (sizeof(size_t) - GetTypeSize(type, cType));
-					if(expr->value.intVal > maxValue)
+					size_t maxValue = (~(size_t)0) >> 8 * (sizeof(size_t) - GetTypeSize(type, cType));
+					if((size_t)expr->value.intVal > maxValue)
 						expr->value.intVal &= maxValue;
 					expr->type = type;
 					expr->cType = cType;
