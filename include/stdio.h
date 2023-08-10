@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#define EOF ((char)-1)
+#define EOF (-1)
 #define SEEK_CUR 1
 
 // This FILE definition will do for now

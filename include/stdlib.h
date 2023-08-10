@@ -30,6 +30,7 @@ int system(char *string);
 int abs(int x);
 div_t div(int numer, int denom);
 long labs(long x);
+long long llabs(long long x);
 ldiv_t ldiv(long numer, long denom);
 int rand();
 void srand(int seed);

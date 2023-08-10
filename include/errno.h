@@ -1,7 +1,9 @@
 #ifndef __ERRNO_H
 #define __ERRNO_H
-// extern int *errno(void);
-// #define errno (*_errno())
+
+int* _errno();
+#define errno (*_errno())
+
 #define EPERM					1		// Operation not permitted
 #define ENOENT					2		// No such file or directory
 #define ESRCH					3		// No such process
