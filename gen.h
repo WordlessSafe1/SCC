@@ -18,42 +18,34 @@ struct {
 	int lcontinue;
 } labels;
 
-
-static char* CalculateParamPosition(int n){
+enum paramMode {
+	P_MODE_DEFAULT	= 1,
+	P_MODE_LOCAL	= 2,
+	P_MODE_SHADOW	= 3,
+};
+static char* CalculateParamPosition(int n, enum paramMode mode){
 	if(n > 3){
-		const char* format = "%d(%%rsp)";
+		const char* format;
+		int offset;
+		if(mode == P_MODE_LOCAL){
+			format = "%d(%%rbp)";
+			offset = 48 + (8 * (n - 4));
+		}
+		else {
+			format = "%d(%%rsp)";
+			offset = 32 + (8 * (n - 4));
+		}
 		const int charCount = strlen(format) + intlen(n) + 1;
 		char* buffer = calloc(charCount, sizeof(char));
-		snprintf(buffer, charCount, format, 32 + (8 * (n - 4)));
+		snprintf(buffer, charCount, format, offset);
 		return buffer;
 	}
 	const char* loc = NULL;
 	switch(n){
-		case 0:		loc = "%rcx";	break;
-		case 1:		loc = "%rdx";	break;
-		case 2:		loc = "%r8";	break;
-		case 3:		loc = "%r9";	break;
-	}
-	char* buffer = calloc((strlen(loc) + 1), sizeof(char));
-	strncpy(buffer, loc, strlen(loc) + 1);
-	return buffer;
-}
-
-// Where the params will be when passed to the current function
-static char* CalculateLocalParamPosition(int n){
-	if(n > 3){
-		const char* format = "%d(%%rbp)";
-		const int charCount = strlen(format) + intlen(n) + 1;
-		char* buffer = calloc(charCount, sizeof(char));
-		snprintf(buffer, charCount, format, 48 + (8 * (n - 4)));
-		return buffer;
-	}
-	const char* loc = NULL;
-	switch(n){
-		case 0:		loc = "%rcx";	break;
-		case 1:		loc = "%rdx";	break;
-		case 2:		loc = "%r8";		break;
-		case 3:		loc = "%r9";		break;
+		case 0:		loc = mode == P_MODE_SHADOW ? "(%rsp)"		: "%rcx";	break;
+		case 1:		loc = mode == P_MODE_SHADOW ? "8(%rsp)"		: "%rdx";	break;
+		case 2:		loc = mode == P_MODE_SHADOW ? "16(%rsp)"	: "%r8";	break;
+		case 3:		loc = mode == P_MODE_SHADOW ? "24(%rsp)"	: "%r9";	break;
 	}
 	char* buffer = calloc((strlen(loc) + 1), sizeof(char));
 	strncpy(buffer, loc, strlen(loc) + 1);
@@ -108,12 +100,13 @@ static const char* GenFuncCall(ASTNode* node){
 	ASTNodeList* params = node->secondaryValue.ptrVal;
 	int pCount = params->count;
 	char* paramInit = calloc(1, sizeof(char));
+	char* paramRecall = calloc(1, sizeof(char));
 	int offset = pCount < 4 ? 32 : 32 + 8 * (pCount - 4);
 	offset = offset % 16 ? (offset / 16 + 1) * 16 : offset;
 	for (int i = pCount - 1; i >= 0; i--) {
 		ASTNode* curNode = params->nodes[i];
 		const char* const format = "%s	movq	%%rax,	%s\n";
-		char* pos = CalculateParamPosition(i);
+		char* pos = CalculateParamPosition(i, P_MODE_SHADOW);
 		const char* inner = GenExpressionAsm(curNode);
 		if(curNode->cType != NULL && GetTypeSize(curNode->type, curNode->cType) > 8){
 			switch(curNode->op){
@@ -135,6 +128,20 @@ static const char* GenFuncCall(ASTNode* node){
 		free(pos);
 		free(buffer);
 	}
+	int shadowPCount = pCount <= 4 ? pCount : 4;
+	for (int i = 0; i < shadowPCount; i++){
+		const char* format = "	movq	%s,	%s\n";
+		char* shadowPos = CalculateParamPosition(i, P_MODE_SHADOW);
+		char* pos = CalculateParamPosition(i, P_MODE_DEFAULT);
+		int charCount = strlen(format) + strlen(pos) + strlen(shadowPos) + 1;
+		char* buffer = malloc(charCount * sizeof(char));
+		snprintf(buffer, charCount, format, shadowPos, pos);
+		strapp(&paramRecall, buffer);
+		free(pos);
+		free(buffer);
+	}
+	strapp(&paramInit, paramRecall);
+	free(paramRecall);
 	if(unresolvedPushes % 2)
 		offset += 8;
 	const char* format =
@@ -1322,7 +1329,7 @@ static const char* GenFunctionAsm(ASTNode* node){
 	;
 	char* paramPlacement = calloc(1, sizeof(char));
 	for(int i = paramCount - 1; i >= 0; i--){
-		char* paramPos = CalculateLocalParamPosition(i);
+		char* paramPos = CalculateParamPosition(i, P_MODE_LOCAL);
 		char* varLoc = NULL;
 		if(i > 3)
 			varLoc = paramPos;
