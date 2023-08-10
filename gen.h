@@ -530,8 +530,28 @@ static const char* GenIncDec(ASTNode* node){
 	}
 	switch(node->lhs->op){
 		case A_VarRef:{
-			const char* move = "	movq	%s,	%%rax\n";
-			const char* action = (node->op == A_Increment) ? "	incq	%s\n" : "	decq	%s\n";
+			const char* move = NULL;
+			const char* action =  NULL;
+			switch(GetTypeSize(node->lhs->type, node->lhs->cType)){
+				case 1:
+					move = "	movb	%s,	%%al\n";
+					action = (node->op == A_Increment) ? "	incb	%s\n" : "	decb	%s\n";	break;
+					break;
+				case 2:
+					move = "	movw	%s,	%%ax\n";
+					action = (node->op == A_Increment) ? "	incw	%s\n" : "	decw	%s\n";	break;
+					break;
+				case 4:
+					move = "	movl	%s,	%%eax\n";
+					action = (node->op == A_Increment) ? "	incl	%s\n" : "	decl	%s\n";	break;
+					break;
+				case 8:
+					move = "	movq	%s,	%%rax\n";
+					action = (node->op == A_Increment) ? "	incq	%s\n" : "	decq	%s\n";	break;
+					break;
+				default:	FatalM("Unhandled type size! (Internal @ gen.h)", __LINE__);
+			}
+
 			const char* formatBuilder = "%s%s";
 			const char* id = node->lhs->value.strVal;
 			SymEntry* var = FindVar(id, scope);
@@ -559,6 +579,14 @@ static const char* GenIncDec(ASTNode* node){
 			const char* move = NULL;
 			const char* action = NULL;
 			switch(GetTypeSize(innerNode->type, innerNode->cType)){
+				case 1:
+					move	= "	movb	(%rcx),	%al\n";
+					action	= (node->op == A_Increment) ? "	incb	(%rcx)\n" : "	decb	(%rcx)\n";
+					break;
+				case 2:
+					move	= "	movw	(%rcx),	%ax\n";
+					action	= (node->op == A_Increment) ? "	incw	(%rcx)\n" : "	decw	(%rcx)\n";
+					break;
 				case 4:
 					move	= "	movl	(%rcx),	%eax\n";
 					action	= (node->op == A_Increment) ? "	incl	(%rcx)\n" : "	decl	(%rcx)\n";
