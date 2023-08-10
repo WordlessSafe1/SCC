@@ -17,6 +17,7 @@ extern_main const char* curFile;
 extern_main int switchDepth init(0);
 extern_main int loopDepth init(0);
 extern_main bool USE_SUB_SWITCH init(false);
+extern_main bool FOLD_INLINE init(true);
 
 extern_main void FatalM(const char* msg, int line);
 extern_main void WarnM(const char* msg, int line);

@@ -323,7 +323,7 @@ SymList* InsertTypedef(const char* alias, PrimordialType type, SymEntry* cType){
 	SymEntry* entry = MakeTypedSymEntry(alias, type, cType, S_Typedef);
 	unsigned int hash = hash_oaat(alias, strlen(alias)) % CAPACITY;
 	if(hashArray[0] == NULL)
-		return NULL;
+		FatalM("Failed to get base hash table! (Internal @ symTable.h)", __LINE__);
 	SymList* list = hashArray[0][hash];
 	if(list == NULL)
 		return hashArray[0][hash] = MakeSymList(entry, NULL);

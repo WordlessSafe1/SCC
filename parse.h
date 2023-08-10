@@ -312,7 +312,16 @@ ASTNode* ParsePrimary(){
 ASTNode* ParseFactor(){
 	Token* tok = PeekToken();
 	switch(tok->type){
-		case T_Minus:		GetToken(); return MakeASTUnary(A_Negate,				ParseFactor(),	FlexNULL(), NULL);
+		case T_Minus:{
+			GetToken();
+			ASTNode* Factor = ParseFactor();
+			if(FOLD_INLINE && Factor->op == A_LitInt){
+				int val = -Factor->value.intVal;
+				free(Factor);
+				return MakeASTLeaf(A_LitInt, P_Int, FlexInt(val));
+			}
+			return MakeASTUnary(A_Negate, Factor,	FlexNULL(), NULL);
+		}
 		case T_Bang:		GetToken(); return MakeASTUnary(A_LogicalNot,			ParseFactor(),	FlexNULL(), NULL);
 		case T_Tilde:		GetToken(); return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	FlexNULL(), NULL);
 		case T_Semicolon:	return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
@@ -362,7 +371,13 @@ ASTNode* ParseFactor(){
 		case T_Sizeof:{
 			GetToken();
 			if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis after 'sizeof'!", Line);
-			PrimordialType type = ParseType(NULL);
+			PrimordialType type = PeekType();
+			if(type == P_Undefined){
+				ASTNode* expr = ParseExpression();
+				if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis after 'sizeof'!", Line);
+				return MakeASTLeaf(A_LitInt, P_Char, FlexInt(GetTypeSize(expr->type, expr->cType)));
+			}
+			type = ParseType(NULL);
 			if(type == P_Undefined)					FatalM("Expected typename!", Line);
 			SymEntry* cType = (type == P_Composite) ? ParseCompRef(&type) : NULL;
 			if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis after 'sizeof'!", Line);
@@ -386,6 +401,8 @@ ASTNode* ParseFactor(){
 					size_t maxValue = (size_t)~0 >> 8 * (sizeof(size_t) - GetTypeSize(type, cType));
 					if(expr->value.intVal > maxValue)
 						expr->value.intVal &= maxValue;
+					expr->type = type;
+					expr->cType = cType;
 					return expr;
 				}
 				return MakeASTNode(A_Cast, type, expr, NULL, NULL, FlexNULL(), cType);

@@ -1111,7 +1111,7 @@ static const char* GenForLoop(ASTNode* node){
 	ExitScope();
 	return str;
 }
-
+int switchCount = 0;
 static char* GenSwitch(ASTNode* node){
 	ASTNodeList* list = node->list;
 	int childCount = list->count;
@@ -1470,15 +1470,12 @@ char* GenerateAsm(ASTNodeList* node){
 				free(bss->prev);
 		}
 	}
-	const char* format =
-		"%s" // Data section
-		"%s" // BSS section
-		"	.text\n"
-		"%s" // ASM
-	;
-	data_section = realloc(data_section, dslen + strlen(Asm) + 1);
-	char* buffer = malloc(dslen + strlen(Asm) + strlen(format) + strlen(bss_section) + 1);
-	snprintf(buffer, dslen + strlen(Asm) + strlen(format) + strlen(bss_section) + 1, format, data_section, bss_section, Asm);
+	char* buffer = _strdup(data_section);
+	strapp(&buffer, bss_section);
+	strapp(&buffer, "	.text\n");
+	strapp(&buffer, Asm);
+	free(data_section);
+	free(bss_section);
 	free(Asm);
 	return buffer;
 }

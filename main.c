@@ -68,7 +68,7 @@ int main(int argc, char** argv){
 						if(i+1 >= argc)	FatalM("Trailing argument '-o'!", NOLINE);
 						else			outputTarget = argv[++i];
 						break;
-					case 't':	dump	= true;		break;
+					case 't':	dump	= true;	FOLD_INLINE = false;	break;
 					case 'c':	link	= false;	break;
 					case 'p':	print	= true;		break;
 					case 'q':	noWarn	= true;		break;

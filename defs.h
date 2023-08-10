@@ -9,7 +9,7 @@
 #define NOLINE -1
 #define true 0b1
 #define false 0
-#define bool unsigned
+#define bool char
 
 #define streq(lhs, rhs) !strcmp(lhs, rhs)
 #define align(value, alignment) ((value + alignment - 1) & (-alignment))
