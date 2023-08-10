@@ -156,7 +156,8 @@ ASTNode* ParseFunctionCall(Token* tok){
 		if(expr == NULL)	FatalM("Invalid expression used as parameter!", Line);
 		if(!variadic){
 			int typeCheck = CheckTypeCompatibility(paramPrototype->type, expr->type);
-			if(typeCheck != TYPES_COMPATIBLE && typeCheck != TYPES_WIDEN_RHS)	FatalM("Incompatible type in function call!", Line);
+			if(typeCheck == TYPES_INCOMPATIBLE)		FatalM("Incompatible type in function call!", Line);
+			else if(typeCheck != TYPES_COMPATIBLE)	WarnM("Truncating parameter in function call!", Line);
 		}
 		if(paramPrototype != NULL)
 			paramPrototype = paramPrototype->next;
