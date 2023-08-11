@@ -288,11 +288,7 @@ static const char* GenUnary(ASTNode* node){
 			;
 			break;
 	}
-	const char* innerAsm = GenExpressionAsm(node->lhs);
-	int charCount = strlen(instr) + strlen(innerAsm) + 1;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount,"%s%s", innerAsm, instr);
-	return str;
+	return strjoin(GenExpressionAsm(node->lhs), instr);
 }
 
 static const char* GenLTRBinary(ASTNode* node){
@@ -560,16 +556,11 @@ static const char* GenIncDec(ASTNode* node){
 					break;
 				default:	FatalM("Unhandled type size! (Internal @ gen.h)", __LINE__);
 			}
-
-			const char* formatBuilder = "%s%s";
+			char* format = (node->value.intVal) ? strjoin(action, move) : strjoin(move, action);
 			const char* id = node->lhs->value.strVal;
 			SymEntry* var = FindVar(id, scope);
 			if(var == NULL)	FatalM("Variable not defined!", Line);
 			const char* location = var->value.strVal;
-			int fb_charCount = strlen(action) + strlen(move) + 1;
-			char* format = malloc(fb_charCount * sizeof(char));
-			if(node->value.intVal)	snprintf(format, fb_charCount, formatBuilder, action, move);
-			else					snprintf(format, fb_charCount, formatBuilder, move, action);
 			int charCount = strlen(format) + (2 * strlen(location));
 			char* str = malloc(charCount * sizeof(char));
 			snprintf(str, charCount, format, location, location);
@@ -1261,14 +1252,8 @@ static const char* GenBlockAsm(ASTNode* node){
 		stackDealloc = malloc(len * sizeof(char));
 		snprintf(stackDealloc, len, format, stackSize);
 	}
-	int charCount =
-		strlen(stackAlloc)		// Stack Allocation ASM
-		+ strlen(statementAsm)	// Inner ASM
-		+ strlen(stackDealloc)	// Stack Deallocation ASM
-		+ 1						// '\0'
-	;
-	char* str = malloc(charCount * sizeof(char));
-	snprintf(str, charCount, "%s%s%s", stackAlloc, statementAsm, stackDealloc);
+	char* str = strjoin(stackAlloc, statementAsm);
+	strapp(&str, stackDealloc);
 	free(stackAlloc);
 	free(stackDealloc);
 	ExitScope();
