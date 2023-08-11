@@ -3,6 +3,7 @@
 // #include <stdarg.h>
 #include <ctype.h>
 #include <string.h>
+#include <errno.h>
 #ifdef __GNUC__
 	#include <unistd.h>
 	#ifndef __SCC__
