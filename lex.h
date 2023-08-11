@@ -292,6 +292,8 @@ char* ShiftToken(){
 	}
 	token = realloc(token, i + 1);
 	token[i] = '\0';
+	if(streq(token, "const"))
+		return ShiftToken();
 	return i ? token : NULL;
 }
 
