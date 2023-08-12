@@ -25,7 +25,8 @@
 <logical_and_expr>		::= <bitwise_or_expr> { "&&" <bitwise_or_expr> }
 <bitwise_or_expr>		::= <bitwise_xor_expr> { '|' <bitwise_xor_expr> }
 <bitwise_xor_expr>		::= <bitwise_and_expr> { '^' <bitwise_and_expr> }
-<bitwise_and_expr>		::= <equality_expr> { '&' <equality_expr> }
+<bitwise_and_expr>		::= <repeat_equality_expr> { '&' <repeat_equality_expr> }
+<repeat_equality_expr>	::= <equality_expr> { "=||" <equality_expr> }
 <equality_expr>			::= <relational_expr> { ( "==" | "!=" ) <relational_expr> }
 <relational_expr>		::= <bit_shift_expr> { ( '<' | '>' | "<=" | ">=" ) <bit_shift_expr> }
 <bit_shift_expr>		::= <additive_expr> { ( "<<" | ">>" ) <additive_expr> }

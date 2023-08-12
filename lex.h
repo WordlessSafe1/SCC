@@ -88,6 +88,7 @@ static Token* Tokenize(const char* str){
 		else if(streq(str, "sizeof"))	token->type = T_Sizeof;
 		else if(streq(str, "static"))	token->type = T_Static;
 		else if(streq(str, "unsigned"))	token->type = T_Unsigned;
+		else if(streq(str, "=||"))		token->type = T_EqualDoublePipe;
 		else if(isdigit(str[0])){
 			token->type = T_LitInt;
 			char* end;
@@ -231,6 +232,20 @@ char* ShiftToken(){
 			if(i){
 				fseek(fptr, -1, SEEK_CUR);
 				break;
+			}
+			if(c == '='){
+				char nextChar = fgetc(fptr);
+				if(nextChar == '|'){
+					nextChar = fgetc(fptr);
+					if(nextChar == '|'){
+						token[i++] = c;
+						token[i++] = nextChar;
+						token[i++] = nextChar;
+						break;
+					}
+					fseek(fptr, -1, SEEK_CUR);
+				}
+				fseek(fptr, -1, SEEK_CUR);
 			}
 			if(c == '-'){
 				char nextChar = fgetc(fptr);

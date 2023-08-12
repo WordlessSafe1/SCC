@@ -116,6 +116,7 @@ enum eTokenCategory {
 	T_Sizeof,
 	T_Static,
 	T_Unsigned,
+	T_EqualDoublePipe,
 };
 
 enum eNodeType {
@@ -180,6 +181,7 @@ enum eNodeType {
 	A_Default,
 	A_Cast,
 	A_ExpressionList,
+	A_RepeatLogicalOr,
 };
 
 enum eStorageClass{

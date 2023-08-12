@@ -541,12 +541,27 @@ ASTNode* ParseEqualityExpression(){
 	return lhs;
 }
 
-ASTNode* ParseBitwiseAndExpression(){
+ASTNode* ParseRepeatingEqualityExpression(){
 	ASTNode* lhs = ParseEqualityExpression();
+	while(PeekToken()->type == T_EqualDoublePipe){
+		GetToken();
+		ASTNode* rhs = ParseEqualityExpression();
+		if(rhs->op != A_ExpressionList)
+			FatalM("The Repeating Short-Circuiting Logical OR Operator currently only supports an expression list as a right hand operand.", Line);
+		PrimordialType type = NodeWidestType(lhs, rhs);
+		if(type == P_Undefined)
+			FatalM("Types of expression members are incompatible!", Line);
+		lhs = MakeASTBinary(A_RepeatLogicalOr, type, lhs, rhs, FlexNULL());
+	}
+	return lhs;
+}
+
+ASTNode* ParseBitwiseAndExpression(){
+	ASTNode* lhs = ParseRepeatingEqualityExpression();
 	Token* tok = PeekToken();
 	while(tok->type == T_Ampersand){
 		GetToken();
-		ASTNode* rhs = ParseEqualityExpression();
+		ASTNode* rhs = ParseRepeatingEqualityExpression();
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
 			FatalM("Types of expression members are incompatible!", Line);

@@ -395,6 +395,53 @@ static const char* GenRTLBinary(ASTNode* node){
 	return str;
 }
 
+static char* GenRepeatingShortCircuitingOr(ASTNode* node){
+	if(node->lhs == NULL)					FatalM("Got NULL as lhs of node! (Internal @ gen.h)", __LINE__);
+	if(node->rhs == NULL)					FatalM("Got NULL as rhs of node! (Internal @ gen.h)", __LINE__);
+	if(node->rhs->op != A_ExpressionList)	FatalM("Expected rhs of node to be A_ExpressionList! (Internal @ gen.h)", __LINE__);
+	unresolvedPushes++;
+	int endLabel = lVar++;
+	char* Asm = _strdup(GenExpressionAsm(node->lhs));
+	strapp(&Asm, "	pushq	%rax\n");
+	ASTNodeList* list = node->rhs->list;
+	int count = list->count;
+	int localLabelPref = ++labelPref;
+	char* caseStart; {
+		int charCount = intlen(localLabelPref) + 4;
+		caseStart = malloc(charCount * sizeof(char));
+		snprintf(caseStart, charCount, "%d1:\n", localLabelPref);
+	}
+	char* shortCircuit; {
+		const char* format = 
+			"	cmpq	%%rax,	(%%rsp)\n"
+			"	jne		%d1f\n"				// Next case
+			"	movq	$1,		%%rax\n"
+			"	jmp		L%d\n"				// End
+		;
+		int charCount = strlen(format) + intlen(localLabelPref) + intlen(endLabel) + 1;
+		shortCircuit = malloc(charCount * sizeof(char));
+		snprintf(shortCircuit, charCount, format, localLabelPref, endLabel);
+	}
+	for(int i = 0; i < count; i++){
+		strapp(&Asm, caseStart);
+		strapp(&Asm, GenExpressionAsm(list->nodes[i]));
+		strapp(&Asm, shortCircuit);
+	}
+	strapp(&Asm, caseStart);
+	strapp(&Asm, "	movq	$0,		%rax\n");
+	{	// Add the exit label
+		const char* format = "L%d:\n";
+		int charCount = strlen(format) + intlen(endLabel) + 1;
+		char* buffer = malloc(charCount * sizeof(char));
+		snprintf(buffer, charCount, format, endLabel);
+		strapp(&Asm, buffer);
+		free(buffer);
+	}
+	strapp(&Asm, "	subq	$8,		%rsp\n"); // Remove pushed item
+	unresolvedPushes--;
+	return Asm;
+}
+
 static const char* GenShortCircuiting(ASTNode* node){
 	if(node->lhs == NULL)	FatalM("Expected factor before binary operator!", Line);
 	if(node->rhs == NULL)	FatalM("Expected factor after binary operator!", Line);
@@ -823,6 +870,7 @@ static const char* GenExpressionAsm(ASTNode* node){
 		case A_AddressOf:			return GenAddressOf(node);
 		case A_Cast:				return GenCast(node);
 		case A_ExpressionList:		return GenExpressionList(node);
+		case A_RepeatLogicalOr:		return GenRepeatingShortCircuitingOr(node);
 		// Compound Assignment
 		case A_AssignSum:
 		case A_AssignDifference:
