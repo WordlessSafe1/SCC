@@ -179,6 +179,7 @@ enum eNodeType {
 	A_Case,
 	A_Default,
 	A_Cast,
+	A_ExpressionList,
 };
 
 enum eStorageClass{

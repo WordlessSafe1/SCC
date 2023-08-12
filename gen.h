@@ -93,6 +93,13 @@ static char* GenLitStr(ASTNode* node){
 	return buffer;
 }
 
+static char* GenExpressionList(ASTNode* node){
+	char* ret = calloc(1, sizeof(char));
+	for(int i = 0; i < node->list->count; i++)
+		strapp(&ret, GenExpressionAsm(node->list->nodes[i]));
+	return ret;
+}
+
 static const char* GenFuncCall(ASTNode* node){
 	if(node == NULL)				FatalM("Expected an AST node, got NULL instead! (In gen.h)", __LINE__);
 	if(node->op != A_FunctionCall)	FatalM("Expected variable reference in expression! (In gen.h)", __LINE__);
@@ -815,6 +822,7 @@ static const char* GenExpressionAsm(ASTNode* node){
 		case A_Dereference:			return GenDereference(node);
 		case A_AddressOf:			return GenAddressOf(node);
 		case A_Cast:				return GenCast(node);
+		case A_ExpressionList:		return GenExpressionList(node);
 		// Compound Assignment
 		case A_AssignSum:
 		case A_AssignDifference:

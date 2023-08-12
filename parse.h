@@ -202,8 +202,22 @@ ASTNode* ParseBase(){
 		}
 		case T_OpenParen:{
 			ASTNode* expr = ParseExpression();
+			Token* tok = PeekToken();
+			if(tok->type == T_CloseParen){
+				GetToken();
+				return expr;
+			}
+			ASTNodeList* list = MakeASTNodeList();
+				AddNodeToASTList(list, expr);
+			while(PeekToken()->type == T_Comma){
+				GetToken();
+				expr = ParseExpression();
+				AddNodeToASTList(list, expr);
+			}
 			if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis!", Line);
-			return expr;
+			ASTNode* node = MakeASTList(A_ExpressionList, list, FlexNULL());
+			node->type = expr->type;
+			return node;
 		}
 		case T_LitInt:{
 			PrimordialType type = P_Undefined;

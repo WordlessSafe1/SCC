@@ -34,7 +34,7 @@
 <factor>				::= <base> | <unary_op> <factor> | '(' <type> ')' <factor> | "sizeof" '(' <type> ')'
 							| ( "++" | "--" ) <id>
 <primary>				::= <base> { <postfix> }
-<base>					::= <id> | <function_call> | <character_literal> | <string_literal> | <int>
+<base>					::= <id> | <function_call> | <character_literal> | <string_literal> | <int> | '(' <expression> { ',' <expression> } ')'
 <postfix>				::= "++" | "--" | '[' <expression> ']' | ( "->" | '.' ) <id>
 <function_call>			::= <id> '(' [ <expression> { ',' <expression> } ] ')'
 <storage_class>			::= "extern" | "static"

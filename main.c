@@ -343,6 +343,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_Case:				name = "Case";				break;
 		case A_Default:				name = "Default";			break;
 		case A_Cast:				name = "Cast";				break;
+		case A_ExpressionList:		name = "ExpressionList";	break;
 	}
 	const char* type = calloc(1, sizeof(char));
 	switch(tree->type & 0xF0){
