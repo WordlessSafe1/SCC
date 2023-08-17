@@ -26,9 +26,6 @@ char* strstr(char *haystack, char *needle);
 char* strtok(char *str, char *delim);
 size_t strxfrm(char *dest, char *src, size_t n);
 
-int snprintf(char * _Buffer, size_t _BufferCount, char *const _Format, ...);
-int sprintf(char *_Buffer, const char *_Format, ...);
-
 char* _strdup(char* source);
 
 #endif

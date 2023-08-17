@@ -182,6 +182,8 @@ enum eNodeType {
 	A_Cast,
 	A_ExpressionList,
 	A_RepeatLogicalOr,
+	A_BuiltinCall,
+	A_RawASM,
 };
 
 enum eStorageClass{
@@ -279,7 +281,7 @@ ASTNodeList* AddNodeToASTList(ASTNodeList* list, ASTNode* node){
 	return list;
 }
 
-ASTNode* MakeASTNodeEx(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value, FlexibleValue secondValue, SymEntry* cType){
+ASTNode* MakeASTNodeEx(NodeType op, PrimordialType type, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value, FlexibleValue secondValue, SymEntry* cType){
 	ASTNode* node = malloc(sizeof(ASTNode));
 	if(node == NULL)
 		FatalM("Failed to malloc in MakeASTNode()", Line);
@@ -303,23 +305,23 @@ ASTNode* MakeASTNodeEx(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, 
 	return node;
 }
 
-ASTNode* MakeASTNode(int op, PrimordialType type, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value, SymEntry* cType){
+ASTNode* MakeASTNode(NodeType op, PrimordialType type, ASTNode* lhs, ASTNode* mid, ASTNode* rhs, FlexibleValue value, SymEntry* cType){
 	return MakeASTNodeEx(op, type, lhs, mid, rhs, value, FlexNULL(), cType);
 }
 
-ASTNode* MakeASTBinary(int op, PrimordialType type, ASTNode* lhs, ASTNode* rhs, FlexibleValue value){
+ASTNode* MakeASTBinary(NodeType op, PrimordialType type, ASTNode* lhs, ASTNode* rhs, FlexibleValue value){
 	return MakeASTNode(op, type, lhs, NULL, rhs, value, NULL);
 }
 
-ASTNode* MakeASTLeaf(int op, PrimordialType type, FlexibleValue value){
+ASTNode* MakeASTLeaf(NodeType op, PrimordialType type, FlexibleValue value){
 	return MakeASTNode(op, type, NULL, NULL, NULL, value, NULL);
 }
 
-ASTNode* MakeASTUnary(int op, ASTNode* lhs, FlexibleValue value, SymEntry* cType){
+ASTNode* MakeASTUnary(NodeType op, ASTNode* lhs, FlexibleValue value, SymEntry* cType){
 	return MakeASTNode(op, lhs->type, lhs, NULL, NULL, value, cType);
 }
 
-ASTNode* MakeASTList(int op, ASTNodeList* list, FlexibleValue value){
+ASTNode* MakeASTList(NodeType op, ASTNodeList* list, FlexibleValue value){
 	ASTNode* node = MakeASTLeaf(op, P_Undefined, value);
 	node->list = list;
 	return node;

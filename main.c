@@ -333,6 +333,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_AssignBitwiseXor:	name = "AssignBitwiseXor";		break;
 		case A_AssignBitwiseOr:		name = "AssignBitwiseOr";		break;
 		case A_FunctionCall:		name = "FunctionCall";			break;
+		case A_BuiltinCall:			name = "BuiltinCall";			break;
 		case A_AddressOf:			name = "AddressOf";				break;
 		case A_Dereference:			name = "Dereference";			break;
 		case A_LitStr:				name = "LitString";				break;

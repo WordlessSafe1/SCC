@@ -140,41 +140,53 @@ SymEntry* ParseCompRef(PrimordialType* type){
 
 ASTNode* ParseFunctionCall(Token* tok){
 	GetToken();
+	bool builtin = strbeg(tok->value.strVal, "__SCC_BUILTIN__");
+	// if(strbeg(tok->value.strVal, "__SCC_BUILTIN__"))
+	// 	WarnM("Reserved name used in fuction call!", Line);
 	SymEntry* func = FindFunc(tok->value.strVal);
-	if (func == NULL)
+	if(func != NULL) // If the function is declared, it overrides any builtin calls of the same name.
+		builtin = false;
+	else if(!builtin)
 		FatalM("Implicit function declarations not yet supported!", Line);
-	Parameter* paramPrototype = (Parameter*)func->value.ptrVal;
+	Parameter* paramPrototype = builtin ? NULL : (Parameter*)func->value.ptrVal;
 	ASTNodeList* params = MakeASTNodeList();
 	bool variadic = false;
 	while(PeekToken()->type != T_CloseParen){
 		if(PeekToken()->type == T_Comma)
 			GetToken();
-		if(!variadic && paramPrototype == NULL)	FatalM("Too many arguments in function call!", Line);
-		if(paramPrototype != NULL && paramPrototype->type == P_Void && streq(paramPrototype->id, "..."))
-			variadic = true;
+		if(!builtin){
+			if(!variadic && paramPrototype == NULL)	FatalM("Too many arguments in function call!", Line);
+			if(paramPrototype != NULL && paramPrototype->type == P_Void && streq(paramPrototype->id, "..."))
+				variadic = true;
+		}
 		ASTNode* expr = ParseExpression();
 		if(expr == NULL)	FatalM("Invalid expression used as parameter!", Line);
-		if(!variadic){
-			int typeCheck = CheckTypeCompatibility(paramPrototype->type, expr->type);
-			if(typeCheck == TYPES_INCOMPATIBLE)		FatalM("Incompatible type in function call!", Line);
-			else if(typeCheck != TYPES_COMPATIBLE)	WarnM("Truncating parameter in function call!", Line);
+		if(!builtin){
+			if(!variadic){
+				int typeCheck = CheckTypeCompatibility(paramPrototype->type, expr->type);
+				if(typeCheck == TYPES_INCOMPATIBLE)		FatalM("Incompatible type in function call!", Line);
+				else if(typeCheck == TYPES_WIDEN_LHS)	WarnM("Truncating parameter in function call!", Line);
+			}
+			if(paramPrototype != NULL)
+				paramPrototype = paramPrototype->next;
 		}
-		if(paramPrototype != NULL)
-			paramPrototype = paramPrototype->next;
 		AddNodeToASTList(params, expr);
 	}
-	if(paramPrototype != NULL && (paramPrototype->type != P_Void || !streq(paramPrototype->id, "...")))
+	if(!builtin && paramPrototype != NULL && (paramPrototype->type != P_Void || !streq(paramPrototype->id, "...")))
 		FatalM("Too few arguments in function call!", Line);
 	if(GetToken()->type != T_CloseParen)	FatalM("Missing close parenthesis in function call!", Line);
 	PrimordialType type = P_Undefined;
 	SymEntry* cType = NULL;
-	if(func == NULL)
-		WarnM("Implicit function declaration!", Line);
+	if(func == NULL){
+		if(!builtin)
+			WarnM("Implicit function declaration!", Line);
+	}
 	else{
 		type = func->type;
 		cType = func->cType;
 	}
-	return MakeASTNodeEx(A_FunctionCall, type, NULL, NULL, NULL, FlexStr(tok->value.strVal), FlexPtr(params), cType);
+	NodeType op = builtin ? A_BuiltinCall : A_FunctionCall;
+	return MakeASTNodeEx(op, type, NULL, NULL, NULL, FlexStr(tok->value.strVal), FlexPtr(params), cType);
 }
 
 ASTNode* ParseVariableReference(Token* outerTok){
@@ -412,6 +424,11 @@ ASTNode* ParseFactor(){
 				ASTNode* expr = ParseExpression();
 				if(expr == NULL)		FatalM("Got NULL instead of expression! (Internal @ parse.h)", __LINE__);
 				// Still need to handle narrowing manually... :'(
+				if(IsPointer(type)){
+					expr->type = type;
+					expr->cType = cType;
+					return expr;
+				}
 				if(expr->op == A_LitInt){
 					size_t maxValue = (~(size_t)0) >> 8 * (sizeof(size_t) - GetTypeSize(type, cType));
 					if((size_t)expr->value.intVal > maxValue)
@@ -903,9 +920,8 @@ ASTNode* ParseFunction(){
 	}
 	Token* tok = GetToken();
 	if(tok->type != T_Identifier)			FatalM("Invalid function declaration; Expected identifier.", Line);
-	int idLen = strlen(tok->value.strVal) + 1;
-	char* idStr = malloc(idLen * sizeof(char));
-	strncpy(idStr,tok->value.strVal, idLen);
+	char* idStr = _strdup(tok->value.strVal);
+	if(strbeg(idStr, "__SCC_BUILTIN__"))	WarnM("Using reserved name in function declaration!", Line);
 	if(GetToken()->type != T_OpenParen)		FatalM("Invalid function declaration; Expected open parenthesis '('.", Line);
 	Parameter* params = NULL;
 	while(PeekToken()->type != T_CloseParen){

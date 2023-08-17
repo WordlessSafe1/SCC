@@ -24,4 +24,10 @@ void puts(char* str);
 int putc(int _Character, FILE *_Stream);
 void putchar(char c);
 
+int snprintf(char * _Buffer, size_t _BufferCount, char *const _Format, ...);
+int sprintf(char *_Buffer, const char *_Format, ...);
+
+#include <stdarg.h>
+int vsnprintf(char* const _Buffer, const size_t _BufferCount, const char* const _Format, va_list _ArgList);
+
 #endif	// _STDIO_H_

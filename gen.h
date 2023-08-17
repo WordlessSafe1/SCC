@@ -7,6 +7,7 @@ static int unresolvedPushes = 0;
 static int labelPref = 9;
 static char* data_section;
 static DbLnkList* bss_vars = NULL;
+static Parameter* curFuncParams = NULL;
 
 static const char* GenExpressionAsm(ASTNode* node);
 static const char* GenStatementAsm(ASTNode* node);
@@ -161,6 +162,44 @@ static const char* GenFuncCall(ASTNode* node){
 	char* buffer = malloc(charCount * sizeof(char));
 	snprintf(buffer, charCount, format, offset, paramInit, id, offset);
 	return buffer;
+}
+
+static char* GenBuiltinCall(ASTNode* node){
+	char* idStr_core = _strdup(node->value.strVal);
+	const char* idStr = idStr_core + 15;
+	ASTNodeList* params = node->secondaryValue.ptrVal;
+	if(streq(idStr, "va_start")){
+		Parameter* outerParams = curFuncParams;
+		int i = 0;
+		while(outerParams->next != NULL && !streq(outerParams->id, "...")){
+			outerParams = outerParams->next;
+			i++;
+		}
+		if(!streq(outerParams->id, "..."))
+			FatalM("Failed to find variadic marker!", Line);
+		char* loc;
+		{
+			switch(i){
+				case 0:		loc = _strdup("16(%rbp)");								break;
+				case 1:		loc = _strdup("24(%rbp)");								break;
+				case 2:		loc = _strdup("32(%rbp)");								break;
+				case 3:		loc = _strdup("40(%rbp)");								break;
+				default:	loc = CalculateParamPosition(i, P_MODE_LOCAL);	break;
+			}
+		}
+		const char* format = "	leaq	%s,	%%rax\n";
+		int charCount = strlen(format) + strlen(loc) + 1;
+		char* buffer = malloc(charCount * sizeof(char));
+		snprintf(buffer, charCount, format, loc);
+		free(loc);
+		ASTNode* rhs = MakeASTLeaf(A_RawASM, P_Undefined, FlexStr(buffer));
+		ASTNode* lhs = params->nodes[0];
+		ASTNode* assign = MakeASTBinary(A_Assign, lhs->type, lhs, rhs, FlexNULL());
+		const char* ret = GenExpressionAsm(assign);
+		free(buffer);
+		return _strdup(ret);
+	}
+	FatalM("Unknown built-in function! (Internal @ gen.h)", NOLINE);
 }
 
 static const char* GenVarRef(ASTNode* node){
@@ -866,6 +905,7 @@ static const char* GenExpressionAsm(ASTNode* node){
 		case A_Ternary:				return GenTernary(node);
 		case A_Assign:				return GenAssignment(node);
 		case A_FunctionCall:		return GenFuncCall(node);
+		case A_BuiltinCall:			return GenBuiltinCall(node);
 		case A_Dereference:			return GenDereference(node);
 		case A_AddressOf:			return GenAddressOf(node);
 		case A_Cast:				return GenCast(node);
@@ -912,6 +952,7 @@ static const char* GenExpressionAsm(ASTNode* node){
 		case A_LogicalOr:			return GenShortCircuiting(node);
 		// Unhandled
 		case A_Undefined:			return "";
+		case A_RawASM:				return node->value.strVal;
 		default:					FatalM("Invalid expression in generation stage!", Line);
 	}
 }
@@ -1348,6 +1389,8 @@ static const char* GenFunctionAsm(ASTNode* node){
 	if(node->value.strVal == NULL)	FatalM("Expected a function identifier, got NULL instead.", Line);
 	if(node->lhs == NULL)			return "";
 	Parameter* params = (Parameter*)node->secondaryValue.ptrVal;
+	Parameter* prevParams = curFuncParams;
+	curFuncParams = params;
 	int paramCount = 0;
 	if (params != NULL) {
 		paramCount++;
@@ -1438,6 +1481,7 @@ static const char* GenFunctionAsm(ASTNode* node){
 	}
 	if(paramCount)
 		ExitScope();
+	curFuncParams = prevParams;
 	return str;
 }
 
