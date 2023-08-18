@@ -445,7 +445,7 @@ ASTNode* ParseFactor(){
 				fsetpos(fptr, fpos);
 				free(fpos);
 			}
-			// FALL THROUGH
+			return ParsePrimary();
 		}
 		default:	return ParsePrimary();
 	}

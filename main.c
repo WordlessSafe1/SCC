@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-// #include <stdarg.h>
+#include <stdarg.h>
 #include <ctype.h>
 #include <string.h>
 #include <errno.h>
@@ -410,14 +410,14 @@ char* strapp(char** lhs, const char* rhs){
 	return *lhs = buffer;
 }
 
-// char* sngenf(int bufferSize, const char* format, ...){
-// 	char* buffer = malloc(bufferSize);
-// 	va_list args;
-// 	va_start(args, format);
-// 	vsnprintf(buffer, bufferSize, format, args);
-// 	va_end(args);
-// 	return buffer;
-// }
+char* sngenf(int bufferSize, const char* format, ...){
+	char* buffer = malloc(bufferSize);
+	va_list args;
+	va_start(args, format);
+	vsnprintf(buffer, bufferSize, format, args);
+	va_end(args);
+	return buffer;
+}
 
 int intlen(long long value){
 	int l = value < 1;
