@@ -462,13 +462,22 @@ ASTNode* ParseTerm(){
 			FatalM("Types of expression members are incompatible!", Line);
 		switch (tok->type){
 			case T_Asterisk:
-				lhs = MakeASTBinary(A_Multiply,	type, lhs, rhs, FlexNULL());
+				if(FOLD_INLINE && lhs->op == A_LitInt && rhs->op == A_LitInt)
+					lhs->value.intVal *= rhs->value.intVal;
+				else
+					lhs = MakeASTBinary(A_Multiply,	type, lhs, rhs, FlexNULL());
 				break;
 			case T_Divide:
-				lhs = MakeASTBinary(A_Divide,	type, lhs, rhs, FlexNULL());
+				if(FOLD_INLINE && lhs->op == A_LitInt && rhs->op == A_LitInt)
+					lhs->value.intVal /= rhs->value.intVal;
+				else
+					lhs = MakeASTBinary(A_Divide,	type, lhs, rhs, FlexNULL());
 				break;
 			case T_Percent:
-				lhs = MakeASTBinary(A_Modulo,	type, lhs, rhs, FlexNULL());
+				if(FOLD_INLINE && lhs->op == A_LitInt && rhs->op == A_LitInt)
+					lhs->value.intVal %= rhs->value.intVal;
+				else
+					lhs = MakeASTBinary(A_Modulo,	type, lhs, rhs, FlexNULL());
 				break;
 		}
 		tok = PeekToken();
@@ -491,10 +500,16 @@ ASTNode* ParseAdditiveExpression(){
 			lhs = ScaleNode(lhs, rhs->type);
 		switch (tok->type){
 			case T_Plus:
-				lhs = MakeASTBinary(A_Add,		type, lhs, rhs, FlexNULL());
+				if(FOLD_INLINE && lhs->op == A_LitInt && rhs->op == A_LitInt)
+					lhs->value.intVal += rhs->value.intVal;
+				else
+					lhs = MakeASTBinary(A_Add,		type, lhs, rhs, FlexNULL());
 				break;
 			case T_Minus:
-				lhs = MakeASTBinary(A_Subtract,	type, lhs, rhs, FlexNULL());
+				if(FOLD_INLINE && lhs->op == A_LitInt && rhs->op == A_LitInt)
+					lhs->value.intVal -= rhs->value.intVal;
+				else
+					lhs = MakeASTBinary(A_Subtract,	type, lhs, rhs, FlexNULL());
 				break;
 		}
 		tok = PeekToken();

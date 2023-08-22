@@ -11,8 +11,6 @@
 	#endif
 #endif
 
-#include <errno.h>
-
 #include "defs.h"
 #include "types.h"
 #include "lex.h"
@@ -31,17 +29,20 @@
 char* AlterFileExtension(const char* filename, const char* extension);
 char* DumpASTTree(ASTNode* tree, int depth);
 char* charStr(char c, int count);
+char* strrem(char* str, const char* sub);
+char* PeepOptimize(char* Asm);
 bool noWarn = false;
 char* target;
 
 void Usage(char* file){
 	const char* format =
-		"Usage: %s [-pqStc] [-o outFile] [-isystem includes] file [file ...]\n"
+		"Usage: %s [-pqStc] [-nofold] [-o outFile] [-isystem includes] file [file ...]\n"
 		"	-q Disable warnings\n"
 		"	-p Print the output to the console\n"
 		"	-S Generate assembly files, but don't assemble or link them\n"
 		"	-t Dump the Abstract Syntax Trees for each file\n"
 		"	-c Assemble the files, but do not link them\n"
+		"	-nofold Disable inline folding optimization\n"
 		"	-o outfile, produce the outfile executable file\n"
 		"	-isystem includes, specify an alternate locaton for the standard headers\n"
 	;
@@ -60,6 +61,7 @@ int main(int argc, char** argv){
 	bool supIntl	= false;
 	bool asASM		= false;
 	bool link		= true;
+	bool peephole	= true;
 	const char* incDir = "./include";
 	for(int i = 1; i < argc; i++){
 		if(argv[i][0] == '-'){
@@ -69,7 +71,7 @@ int main(int argc, char** argv){
 						if(i+1 >= argc)	FatalM("Trailing argument '-o'!", NOLINE);
 						else			outputTarget = argv[++i];
 						break;
-					case 't':	dump	= true;	FOLD_INLINE = false;	break;
+					case 't':	dump	= true;		break;
 					case 'c':	link	= false;	break;
 					case 'p':	print	= true;		break;
 					case 'q':	noWarn	= true;		break;
@@ -85,6 +87,8 @@ int main(int argc, char** argv){
 				if(i+1 >= argc)	FatalM("Trailing argument '-isystem'!", NOLINE);
 				incDir = argv[++i];
 			}
+			else if(streq(argv[i], "-nofold"))	FOLD_INLINE	= false;
+			else if(streq(argv[i], "-nopeep"))	peephole	= false;
 			else							FatalM("Unknown flag(s) supplied!", NOLINE);
 		}
 		else if(inputs == MAXFILES - 2)	FatalM("Too many object files!", NOLINE);
@@ -141,6 +145,8 @@ int main(int argc, char** argv){
 		}
 		ResetVarTable(0);
 		char* Asm = GenerateAsm(ast);
+		if(peephole)
+			Asm = PeepOptimize(Asm);
 		if(print){
 			printf("%s", Asm);
 			break;
@@ -221,6 +227,54 @@ void WarnM(const char* msg, int line){
 	if(noWarn)	return;
 	if(line == NOLINE)	printf("Warning:\n\t%s\n", msg);
 	else				printf("Warning - on ln %d in %s:\n\t%s\n", line, curFile, msg);
+}
+
+char* PeepOptimize(char* Asm){
+	for(char* pos = Asm; *pos != '\0'; pos++){
+		// /\s*(sub|add)q\s*\$-?(\d*),\s*%rsp\s*\1q\s*\$(\d*),\s*%rsp/
+		// $1 \$$($2 + $3) ,	%rsp
+		// using while to allow for 'break' statement guard clauses
+		while(!strncmp(pos, "subq", 4) || !strncmp(pos, "addq", 4)){
+			char* subOrAdd = calloc(5, sizeof(char));
+			memcpy(subOrAdd, pos, 4);
+			char* inPos = pos + 4;
+			/* Skip whitespace */ while(*inPos == ' ' || *inPos == '\t' || *inPos == '\n' || *inPos == '\r') inPos++;
+			if(*inPos++ != '$')	break;
+			char* nextPos = NULL;
+			long long num = strtoll(inPos, &nextPos, 10);
+			if(errno == ERANGE)	break;
+			inPos = nextPos;
+			if(*inPos++ != ',')	break;
+			/* Skip whitespace */ while(*inPos == ' ' || *inPos == '\t' || *inPos == '\n' || *inPos == '\r') inPos++;
+			if(strncmp(inPos, "%rsp", 4))
+				break;
+			inPos += 4;
+			/* Skip whitespace */ while(*inPos == ' ' || *inPos == '\t' || *inPos == '\n' || *inPos == '\r') inPos++;
+			if(strncmp(inPos, subOrAdd, 4))
+				break;
+			inPos += 4;
+			/* Skip whitespace */ while(*inPos == ' ' || *inPos == '\t' || *inPos == '\n' || *inPos == '\r') inPos++;
+			if(*inPos++ != '$')	break;
+			long long num2 = strtoll(inPos, &nextPos, 10);
+			if(errno == ERANGE)	break;
+			inPos = nextPos;
+			if(*inPos++ != ',')	break;
+			/* Skip whitespace */ while(*inPos == ' ' || *inPos == '\t' || *inPos == '\n' || *inPos == '\r') inPos++;
+			if(strncmp(inPos, "%rsp", 4))
+				break;
+			inPos += 4;
+			int blockSize = ((unsigned long long)inPos) - ((unsigned long long)pos) - 1;
+			memset(pos, 0, blockSize);
+			const char* format = "%s	$%d,	%%rsp";
+			char* newInstr = sngenf(strlen(format) + strlen(subOrAdd) + intlen(num) + intlen(num2) + 1, format, subOrAdd, num + num2);
+			strapp(&newInstr, inPos);
+			int posDiff = ((unsigned long long)pos) - ((unsigned long long)Asm);
+			strapp(&Asm, newInstr);
+			free(newInstr);
+			pos = (char*)(((unsigned long long)Asm) + posDiff);
+		}
+	}
+	return strrem(Asm, "	addq	$32,	%rsp\n	subq	$32,	%rsp\n");
 }
 
 char* DumpASTTree(ASTNode* tree, int depth){
@@ -388,6 +442,52 @@ char* DumpASTTree(ASTNode* tree, int depth){
 	free(list);
 	free(tabs);
 	return buffer;
+}
+
+// bool match(char* regex, char* text){
+// 	if(regex[0] == '^')
+// 		return matchLocal(regex + 1, text);
+// 	do {
+// 		if(matchLocal(regex, text))
+// 			return true;
+// 	} while(*text++ != '\0');
+// 	return false;
+// }
+
+// bool matchLocal(char* regex, char* text){
+// 	if(*regex == '\0')
+// 		return true;
+// 	if(regex[1] == '*')
+// 		return matchRepeat(*regex, regex + 2, text);
+// 	if(*regex == '$' && regex[1] == '\0')
+// 		return *text == '\0';
+// 	if(*text != '\0' && (*regex == '.' || *regex == *text))
+// 		return matchLocal(regex + 1, text + 1);
+// 	return false;
+// }
+
+// bool matchRepeat(char c, char* regex, char* text){
+// 	do {
+// 		if(matchLocal(regex, text))
+// 			return true;
+// 	}	while(*text != '\0' && (*text++ == c || c == '.'));
+// 	return false;
+// }
+
+char* strrem(char* str, const char* sub){
+	char* p;
+	char* q;
+	char* r;
+	if (*sub && (q = r = strstr(str, sub)) != NULL) {
+		size_t len = strlen(sub);
+		while ((r = strstr(p = r + len, sub)) != NULL) {
+			while (p < r)
+				*q++ = *p++;
+		}
+		while ((*q++ = *p++) != '\0')
+			continue;
+	}
+	return str;
 }
 
 char* charStr(char c, int count){
