@@ -435,7 +435,7 @@ ASTNode* ParseFactor(){
 			while(!failed){
 				SymEntry* cType = (type == P_Composite) ? ParseCompRef(&type) : NULL;
 				if(GetToken()->type != T_CloseParen) {	failed = true;	break; }
-				ASTNode* expr = ParseExpression();
+				ASTNode* expr = ParseFactor();
 				if(expr == NULL)		FatalM("Got NULL instead of expression! (Internal @ parse.h)", __LINE__);
 				// Still need to handle narrowing manually... :'(
 				if(IsPointer(type)){
@@ -545,9 +545,11 @@ ASTNode* ParseAdditiveExpression(){
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
 			FatalM("Types of expression members are incompatible!", Line);
-		if(IsPointer(lhs->type) && !IsPointer(rhs->type))
+		bool lhsIsPtr = IsPointer(lhs->type);
+		bool rhsIsPtr = IsPointer(rhs->type);
+		if(lhsIsPtr && !rhsIsPtr)
 			rhs = ScaleNode(rhs, lhs->type);
-		else if(IsPointer(rhs->type) && ! IsPointer(lhs->type))
+		else if(rhsIsPtr && !lhsIsPtr)
 			lhs = ScaleNode(lhs, rhs->type);
 		switch (tok->type){
 			case T_Plus:
@@ -567,14 +569,21 @@ ASTNode* ParseAdditiveExpression(){
 				break;
 			case T_Minus:
 				if(FOLD_INLINE){
-					if(rhs->op == A_LitInt && rhs->value.intVal == 0)
+					if(rhs->op == A_LitInt && rhs->value.intVal == 0){
+						if(lhsIsPtr && rhsIsPtr)
+							lhs = MakeASTBinary(A_Divide,	P_ULongLong, lhs,	MakeASTLeaf(A_LitInt, P_LongLong, FlexInt(GetTypeSize(lhs->type - 1, lhs->cType))), FlexNULL());
 						break;
+					}
 					if(lhs->op == A_LitInt && rhs->op == A_LitInt){
 						lhs->value.intVal -= rhs->value.intVal;
+						if(lhsIsPtr && rhsIsPtr)
+							lhs = MakeASTBinary(A_Divide,	P_ULongLong, lhs,	MakeASTLeaf(A_LitInt, P_LongLong, FlexInt(GetTypeSize(lhs->type - 1, lhs->cType))), FlexNULL());
 						break;
 					}
 				}
 				lhs = MakeASTBinary(A_Subtract,	type, lhs, rhs, FlexNULL());
+				if(lhsIsPtr && rhsIsPtr)
+					lhs = MakeASTBinary(A_Divide,			P_ULongLong, lhs,	MakeASTLeaf(A_LitInt, P_LongLong, FlexInt(GetTypeSize(lhs->type - 1, lhs->cType))), FlexNULL());
 				break;
 		}
 		tok = PeekToken();
