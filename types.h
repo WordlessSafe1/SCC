@@ -184,6 +184,7 @@ enum eNodeType {
 	A_RepeatLogicalOr,
 	A_BuiltinCall,
 	A_RawASM,
+	A_Logicize,
 };
 
 enum eStorageClass{

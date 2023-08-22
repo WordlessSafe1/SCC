@@ -349,7 +349,21 @@ ASTNode* ParseFactor(){
 			}
 			return MakeASTUnary(A_Negate, Factor,	FlexNULL(), NULL);
 		}
-		case T_Bang:		GetToken(); return MakeASTUnary(A_LogicalNot,			ParseFactor(),	FlexNULL(), NULL);
+		case T_Bang:{
+			GetToken();
+			ASTNode* factor = ParseFactor();
+			if(FOLD_INLINE){
+				switch(factor->op){
+					case A_LitInt:
+						factor->value.intVal = !factor->value.intVal;
+						return factor;
+					case A_LogicalNot:	return MakeASTUnary(A_Logicize, factor->lhs, FlexNULL(), NULL);
+					case A_Logicize:	return MakeASTUnary(A_LogicalNot, factor->lhs, FlexNULL(), NULL);
+					default:			break;
+				}
+			}
+			return MakeASTUnary(A_LogicalNot, factor, FlexNULL(), NULL);
+		}
 		case T_Tilde:		GetToken(); return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	FlexNULL(), NULL);
 		case T_Semicolon:	return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
 		case T_PlusPlus:{
@@ -462,22 +476,59 @@ ASTNode* ParseTerm(){
 			FatalM("Types of expression members are incompatible!", Line);
 		switch (tok->type){
 			case T_Asterisk:
-				if(FOLD_INLINE && lhs->op == A_LitInt && rhs->op == A_LitInt)
-					lhs->value.intVal *= rhs->value.intVal;
-				else
-					lhs = MakeASTBinary(A_Multiply,	type, lhs, rhs, FlexNULL());
+				if(FOLD_INLINE){
+					if(lhs->op == A_LitInt && lhs->value.intVal == 0){
+						lhs = MakeASTLeaf(A_LitInt, P_Char, FlexInt(0));
+						break;
+					}
+					if(rhs->op == A_LitInt && rhs->value.intVal == 0){
+						lhs = MakeASTLeaf(A_LitInt, P_Char, FlexInt(0));
+						break;
+					}
+					if(lhs->op == A_LitInt && lhs->value.intVal == 1){
+						lhs = rhs;
+						break;
+					}
+					if(rhs->op == A_LitInt && rhs->value.intVal == 1)
+						break;
+					if(lhs->op == A_LitInt && rhs->op == A_LitInt){
+						lhs->value.intVal *= rhs->value.intVal;
+						break;
+					}
+				}
+				lhs = MakeASTBinary(A_Multiply,	type, lhs, rhs, FlexNULL());
 				break;
 			case T_Divide:
-				if(FOLD_INLINE && lhs->op == A_LitInt && rhs->op == A_LitInt)
-					lhs->value.intVal /= rhs->value.intVal;
-				else
-					lhs = MakeASTBinary(A_Divide,	type, lhs, rhs, FlexNULL());
+				if(FOLD_INLINE){
+					if(lhs->op == A_LitInt && lhs->value.intVal == 0){
+						lhs = MakeASTLeaf(A_LitInt, P_Char, FlexInt(0));
+						break;
+					}
+					if(rhs->op == A_LitInt && rhs->value.intVal == 1)
+						break;
+					if(lhs->op == A_LitInt && rhs->op == A_LitInt){
+						lhs->value.intVal /= rhs->value.intVal;
+						break;
+					}
+				}
+				lhs = MakeASTBinary(A_Divide,	type, lhs, rhs, FlexNULL());
 				break;
 			case T_Percent:
-				if(FOLD_INLINE && lhs->op == A_LitInt && rhs->op == A_LitInt)
-					lhs->value.intVal %= rhs->value.intVal;
-				else
-					lhs = MakeASTBinary(A_Modulo,	type, lhs, rhs, FlexNULL());
+				if(FOLD_INLINE){
+					if(lhs->op == A_LitInt && lhs->value.intVal == 0){
+						lhs = MakeASTLeaf(A_LitInt, P_Char, FlexInt(0));
+						break;
+					}
+					if(rhs->op == A_LitInt && rhs->value.intVal == 1){
+						lhs = MakeASTLeaf(A_LitInt, P_Char, FlexInt(0));
+						break;
+					}
+					if(lhs->op == A_LitInt && rhs->op == A_LitInt){
+						lhs->value.intVal %= rhs->value.intVal;
+						break;
+					}
+				}
+				lhs = MakeASTBinary(A_Modulo,	type, lhs, rhs, FlexNULL());
 				break;
 		}
 		tok = PeekToken();
@@ -500,16 +551,30 @@ ASTNode* ParseAdditiveExpression(){
 			lhs = ScaleNode(lhs, rhs->type);
 		switch (tok->type){
 			case T_Plus:
-				if(FOLD_INLINE && lhs->op == A_LitInt && rhs->op == A_LitInt)
-					lhs->value.intVal += rhs->value.intVal;
-				else
-					lhs = MakeASTBinary(A_Add,		type, lhs, rhs, FlexNULL());
+				if(FOLD_INLINE){
+					if(lhs->op == A_LitInt && lhs->value.intVal == 0){
+						lhs = rhs;
+						break;
+					}
+					if(rhs->op == A_LitInt && rhs->value.intVal == 0)
+						break;
+					if(lhs->op == A_LitInt && rhs->op == A_LitInt){
+						lhs->value.intVal += rhs->value.intVal;
+						break;
+					}
+				}
+				lhs = MakeASTBinary(A_Add,		type, lhs, rhs, FlexNULL());
 				break;
 			case T_Minus:
-				if(FOLD_INLINE && lhs->op == A_LitInt && rhs->op == A_LitInt)
-					lhs->value.intVal -= rhs->value.intVal;
-				else
-					lhs = MakeASTBinary(A_Subtract,	type, lhs, rhs, FlexNULL());
+				if(FOLD_INLINE){
+					if(rhs->op == A_LitInt && rhs->value.intVal == 0)
+						break;
+					if(lhs->op == A_LitInt && rhs->op == A_LitInt){
+						lhs->value.intVal -= rhs->value.intVal;
+						break;
+					}
+				}
+				lhs = MakeASTBinary(A_Subtract,	type, lhs, rhs, FlexNULL());
 				break;
 		}
 		tok = PeekToken();

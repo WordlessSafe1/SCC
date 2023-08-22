@@ -400,6 +400,7 @@ char* DumpASTTree(ASTNode* tree, int depth){
 		case A_Cast:				name = "Cast";					break;
 		case A_ExpressionList:		name = "ExpressionList";		break;
 		case A_RepeatLogicalOr:		name = "RepeatingLogicalOR";	break;
+		case A_Logicize:			name = "Logicize";				break;
 	}
 	const char* type = calloc(1, sizeof(char));
 	switch(tree->type & 0xF0){
@@ -443,36 +444,6 @@ char* DumpASTTree(ASTNode* tree, int depth){
 	free(tabs);
 	return buffer;
 }
-
-// bool match(char* regex, char* text){
-// 	if(regex[0] == '^')
-// 		return matchLocal(regex + 1, text);
-// 	do {
-// 		if(matchLocal(regex, text))
-// 			return true;
-// 	} while(*text++ != '\0');
-// 	return false;
-// }
-
-// bool matchLocal(char* regex, char* text){
-// 	if(*regex == '\0')
-// 		return true;
-// 	if(regex[1] == '*')
-// 		return matchRepeat(*regex, regex + 2, text);
-// 	if(*regex == '$' && regex[1] == '\0')
-// 		return *text == '\0';
-// 	if(*text != '\0' && (*regex == '.' || *regex == *text))
-// 		return matchLocal(regex + 1, text + 1);
-// 	return false;
-// }
-
-// bool matchRepeat(char c, char* regex, char* text){
-// 	do {
-// 		if(matchLocal(regex, text))
-// 			return true;
-// 	}	while(*text != '\0' && (*text++ == c || c == '.'));
-// 	return false;
-// }
 
 char* strrem(char* str, const char* sub){
 	char* p;

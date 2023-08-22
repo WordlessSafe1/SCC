@@ -293,6 +293,13 @@ static const char* GenUnary(ASTNode* node){
 	switch(node->op){
 		case A_Negate:				instr = "	neg		%rax\n";	break;
 		case A_BitwiseComplement:	instr = "	not		%rax\n";	break;
+		case A_Logicize:
+			instr =
+				"	cmp		$0,		%rax\n"
+				"	movq	$0,		%rax\n"
+				"	setne	%al\n"
+			;
+			break;
 		case A_LogicalNot:
 			instr =
 				"	cmp		$0,		%rax\n"
@@ -832,6 +839,7 @@ static const char* GenExpressionAsm(ASTNode* node){
 		// Unary Operators
 		case A_Negate:
 		case A_BitwiseComplement:
+		case A_Logicize:
 		case A_LogicalNot:			return GenUnary(node);
 		// Left-To-Right Operators
 		case A_Add:
