@@ -159,14 +159,12 @@ static char* GenBuiltinCall(ASTNode* node){
 		if(!streq(outerParams->id, "..."))
 			FatalM("Failed to find variadic marker!", Line);
 		char* loc;
-		{
-			switch(i){
-				case 0:		loc = _strdup("16(%rbp)");								break;
-				case 1:		loc = _strdup("24(%rbp)");								break;
-				case 2:		loc = _strdup("32(%rbp)");								break;
-				case 3:		loc = _strdup("40(%rbp)");								break;
-				default:	loc = CalculateParamPosition(i, P_MODE_LOCAL);	break;
-			}
+		switch(i){
+			case 0:		loc = _strdup("16(%rbp)");								break;
+			case 1:		loc = _strdup("24(%rbp)");								break;
+			case 2:		loc = _strdup("32(%rbp)");								break;
+			case 3:		loc = _strdup("40(%rbp)");								break;
+			default:	loc = CalculateParamPosition(i, P_MODE_LOCAL);	break;
 		}
 		const char* format = "	leaq	%s,	%%rax\n";
 		char* buffer = sngenf(strlen(format) + strlen(loc) + 1, format, loc);
