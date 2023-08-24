@@ -411,17 +411,23 @@ ASTNode* ParseFactor(){
 		}
 		case T_Sizeof:{
 			GetToken();
-			if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis after 'sizeof'!", Line);
-			PrimordialType type = PeekType();
+			bool withParen = PeekToken()->type == T_OpenParen;
+			PrimordialType type = P_Undefined;
+			if(withParen){
+				GetToken();
+				type = PeekType();
+			}
+			// if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis after 'sizeof'!", Line);
+			// PrimordialType type = PeekType();
 			if(type == P_Undefined){
 				ASTNode* expr = ParseExpression();
-				if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis after 'sizeof'!", Line);
+				if(withParen && GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis after 'sizeof'!", Line);
 				return MakeASTLeaf(A_LitInt, P_Char, FlexInt(GetTypeSize(expr->type, expr->cType)));
 			}
 			type = ParseType(NULL);
 			if(type == P_Undefined)					FatalM("Expected typename!", Line);
 			SymEntry* cType = (type == P_Composite) ? ParseCompRef(&type) : NULL;
-			if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis after 'sizeof'!", Line);
+			if(withParen && GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis after 'sizeof'!", Line);
 			return MakeASTLeaf(A_LitInt, P_Char, FlexInt(GetTypeSize(type, cType)));
 		}
 		case T_OpenParen:{
