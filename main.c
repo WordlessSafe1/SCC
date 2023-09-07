@@ -26,6 +26,8 @@
 
 #include "globals.h"
 
+ASTNode* FoldASTNodes(ASTNode* tree);
+ASTNodeList* FoldASTNodeList(ASTNodeList* list);
 char* AlterFileExtension(const char* filename, const char* extension);
 char* DumpASTTree(ASTNode* tree, int depth);
 char* charStr(char c, int count);
@@ -36,13 +38,15 @@ char* target;
 
 void Usage(char* file){
 	const char* format =
-		"Usage: %s [-pqStc] [-nofold] [-o outFile] [-isystem includes] file [file ...]\n"
+		"Usage: %s [-pqStc] [-nofold|-nofoldi|-nofolds] [-o outFile] [-isystem includes] file [file ...]\n"
 		"	-q Disable warnings\n"
 		"	-p Print the output to the console\n"
 		"	-S Generate assembly files, but don't assemble or link them\n"
 		"	-t Dump the Abstract Syntax Trees for each file\n"
 		"	-c Assemble the files, but do not link them\n"
-		"	-nofold Disable inline folding optimization\n"
+		"	-nofold Disable fold optimizations\n"
+		"	-nofoldi Disable inline folding optimization\n"
+		"	-nofolds Disable fold optimization stage\n"
 		"	-o outfile, produce the outfile executable file\n"
 		"	-isystem includes, specify an alternate locaton for the standard headers\n"
 	;
@@ -62,6 +66,7 @@ int main(int argc, char** argv){
 	bool asASM		= false;
 	bool link		= true;
 	bool peephole	= true;
+	bool foldStage	= true;
 	const char* incDir = "./include";
 	for(int i = 1; i < argc; i++){
 		if(argv[i][0] == '-'){
@@ -87,8 +92,13 @@ int main(int argc, char** argv){
 				if(i+1 >= argc)	FatalM("Trailing argument '-isystem'!", NOLINE);
 				incDir = argv[++i];
 			}
-			else if(streq(argv[i], "-nofold"))	FOLD_INLINE	= false;
 			else if(streq(argv[i], "-nopeep"))	peephole	= false;
+			else if(streq(argv[i], "-nofoldi"))	FOLD_INLINE	= false;
+			else if(streq(argv[i], "-nofolds"))	foldStage	= false;
+			else if(streq(argv[i], "-nofold")){
+				FOLD_INLINE	= false;
+				foldStage = false;
+			}
 			else							FatalM("Unknown flag(s) supplied!", NOLINE);
 		}
 		else if(inputs == MAXFILES - 2)	FatalM("Too many object files!", NOLINE);
@@ -119,6 +129,8 @@ int main(int argc, char** argv){
 		free(target);
 		target = NULL;
 		Line = NOLINE;
+		if(foldStage)
+			ast = FoldASTNodeList(ast);
 		if(dump){
 			if(output == NULL || print){
 				if(supIntl)
@@ -275,6 +287,191 @@ char* PeepOptimize(char* Asm){
 		}
 	}
 	return strrem(Asm, "	addq	$32,	%rsp\n	subq	$32,	%rsp\n");
+}
+
+ASTNodeList* FoldASTNodeList(ASTNodeList* list){
+	for(int i = 0; i < list->count; i++)
+		list->nodes[i] = FoldASTNodes(list->nodes[i]);
+	return list;
+}
+
+ASTNode* FoldASTNodes(ASTNode* tree){
+	if(tree->lhs != NULL)			tree->lhs = FoldASTNodes(tree->lhs);
+	if(tree->mid != NULL)			tree->mid = FoldASTNodes(tree->mid);
+	if(tree->rhs != NULL)			tree->rhs = FoldASTNodes(tree->rhs);
+	if(tree->list != NULL)			tree->list = FoldASTNodeList(tree->list);
+	if(tree->op == A_FunctionCall)	tree->secondaryValue.ptrVal = FoldASTNodeList(tree->secondaryValue.ptrVal);
+
+	NodeType lhsOp = tree->lhs == NULL ? A_Undefined : tree->lhs->op;
+	NodeType rhsOp = tree->rhs == NULL ? A_Undefined : tree->rhs->op;
+	bool lhsIsInt = tree->lhs != NULL && lhsOp == A_LitInt;
+	bool rhsIsInt = tree->rhs != NULL && rhsOp == A_LitInt;
+
+	switch(tree->op){
+		case A_LitInt:		return tree;
+		case A_Negate:
+			if(!lhsIsInt)
+				break;
+			tree->lhs->value.intVal = -tree->lhs->value.intVal;
+			return tree->lhs;
+		case A_LogicalNot:
+			if(!lhsIsInt)
+				break;
+			tree->lhs->value.intVal = !tree->lhs->value.intVal;
+			return tree->lhs;
+		case A_BitwiseComplement:
+			if(!lhsIsInt)
+				break;
+			tree->lhs->value.intVal = ~tree->lhs->value.intVal;
+			return tree->lhs;
+		case A_Multiply:
+			if(!lhsIsInt && !rhsIsInt)
+				break;
+			if(lhsIsInt){
+				int lhsVal = tree->lhs->value.intVal;
+				if(rhsIsInt){
+					tree->lhs->value.intVal *= tree->rhs->value.intVal;
+					return tree->lhs;
+				}
+				if(lhsVal == 0){
+					tree->lhs->value.intVal = 0;
+					return tree->lhs;
+				}
+				if(lhsVal == 1)
+					return tree->rhs;
+			}
+			if(rhsIsInt){
+				int rhsVal = tree->rhs->value.intVal;
+				if(rhsVal == 0){
+					tree->rhs->value.intVal = 0;
+					return tree->rhs;
+				}
+				if(rhsVal == 1)
+					return tree->lhs;
+			}
+			break;
+		case A_Divide:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal /= tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		case A_Modulo:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal %= tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		case A_Add:
+			if(!lhsIsInt && !rhsIsInt)
+				break;
+			if(lhsIsInt){
+				if(rhsIsInt){
+					tree->lhs->value.intVal += tree->rhs->value.intVal;
+					return tree->lhs;
+				}
+				if(tree->lhs->value.intVal == 0)
+					return tree->rhs;
+			}
+			if(rhsIsInt && tree->rhs->value.intVal == 0)
+				return tree->lhs;
+			break;
+		case A_Subtract:
+			if(!lhsIsInt && !rhsIsInt)
+				break;
+			if(rhsIsInt){
+				if(lhsIsInt){
+					tree->lhs->value.intVal -= tree->rhs->value.intVal;
+					return tree->lhs;
+				}
+				if(tree->rhs->value.intVal == 0)
+					return tree->lhs;
+			}
+			// // TODO: This is useful, but I'm working on folding, not strength, so I'll come back and include it later
+			// if(lhsIsInt && tree->lhs->value.intVal == 0)
+			// 	return MakeASTLeaf(A_Negate, tree->rhs);
+			break;
+		case A_LeftShift:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal <<= tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		// case A_RightShift:
+		// 	if(lhsIsInt && rhsIsInt){
+		// 		tree->lhs->value.intVal >>= tree->rhs->value.intVal;
+		// 		return tree->lhs;
+		// 	}
+		// 	break;
+		case A_LessThan:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal = tree->lhs->value.intVal < tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		case A_GreaterThan:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal = tree->lhs->value.intVal > tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		case A_LessOrEqual:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal = tree->lhs->value.intVal <= tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		case A_GreaterOrEqual:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal = tree->lhs->value.intVal >= tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		case A_EqualTo:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal = tree->lhs->value.intVal == tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		case A_NotEqualTo:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal = tree->lhs->value.intVal != tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		case A_BitwiseAnd:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal &= tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		case A_BitwiseXor:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal ^= tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		case A_BitwiseOr:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal |= tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		case A_LogicalAnd:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal = tree->lhs->value.intVal && tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		case A_LogicalOr:
+			if(lhsIsInt && rhsIsInt){
+				tree->lhs->value.intVal = tree->lhs->value.intVal || tree->rhs->value.intVal;
+				return tree->lhs;
+			}
+			break;
+		default:	break;
+	}
+	return tree;
 }
 
 char* DumpASTTree(ASTNode* tree, int depth){
