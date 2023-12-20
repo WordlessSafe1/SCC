@@ -26,8 +26,8 @@ PrimordialType ParseType(StorageClass* sc){
 	// If SC is NULL, then storage classes are not supported; Parsing should be skipped in order to force a fail later on.
 	if(sc != NULL){
 		switch(tok->type){
-			case T_Static:	GetToken(); *sc = C_Static;	break;
-			case T_Extern:	GetToken();	*sc = C_Extern;	break;
+			case T_Static:	SkipToken(); *sc = C_Static;	break;
+			case T_Extern:	SkipToken();	*sc = C_Extern;	break;
 			default:		break;
 		}
 		tok = PeekToken();
@@ -38,7 +38,7 @@ PrimordialType ParseType(StorageClass* sc){
 		}
 	}
 	if(PeekToken()->type == T_Unsigned){
-		GetToken();
+		SkipToken();
 		tok = PeekToken();
 		isUnsigned = true;
 	}
@@ -57,7 +57,7 @@ PrimordialType ParseType(StorageClass* sc){
 		case T_Void:		type = P_Void;		break;
 		case T_Long:
 			if(PeekTokenN(1)->type == T_Long){
-				GetToken();
+				SkipToken();
 				type = P_LongLong;
 			}
 			else
@@ -72,9 +72,9 @@ PrimordialType ParseType(StorageClass* sc){
 	}
 	if(isUnsigned)
 		type += P_UNSIGNED_DIFF;
-	GetToken();
+	SkipToken();
 	while(PeekToken()->type == T_Asterisk){
-		GetToken();
+		SkipToken();
 		if((type & 0xF) == 0xF)	FatalM("Indirection limit exceeded!", Line);
 		type++;
 	}
@@ -119,7 +119,7 @@ SymEntry* ParseCompRef(PrimordialType* type){
 		case T_Struct:
 		case T_Union:
 			{
-				Token* tok = GetToken();
+				Token* tok = GetTransientToken();
 				if(tok->type != T_Identifier)		FatalM("Expected identifier after 'struct' keyword!", Line);
 				id = tok->value.strVal;
 			}
@@ -129,7 +129,7 @@ SymEntry* ParseCompRef(PrimordialType* type){
 			FatalM("Expected typename!", Line);
 	}
 	while(PeekToken()->type == T_Asterisk) {
-		GetToken();
+		SkipToken();
 		(*type)++;
 	}
 	if(cTok->type == T_Enum)
@@ -139,7 +139,7 @@ SymEntry* ParseCompRef(PrimordialType* type){
 }
 
 ASTNode* ParseFunctionCall(Token* tok){
-	GetToken();
+	SkipToken();
 	bool builtin = strbeg(tok->value.strVal, "__SCC_BUILTIN__");
 	// if(strbeg(tok->value.strVal, "__SCC_BUILTIN__"))
 	// 	WarnM("Reserved name used in fuction call!", Line);
@@ -153,7 +153,7 @@ ASTNode* ParseFunctionCall(Token* tok){
 	bool variadic = false;
 	while(PeekToken()->type != T_CloseParen){
 		if(PeekToken()->type == T_Comma)
-			GetToken();
+			SkipToken();
 		if(!builtin){
 			if(!variadic && paramPrototype == NULL)	FatalM("Too many arguments in function call!", Line);
 			if(paramPrototype != NULL && paramPrototype->type == P_Void && streq(paramPrototype->id, "..."))
@@ -174,7 +174,7 @@ ASTNode* ParseFunctionCall(Token* tok){
 	}
 	if(!builtin && paramPrototype != NULL && (paramPrototype->type != P_Void || !streq(paramPrototype->id, "...")))
 		FatalM("Too few arguments in function call!", Line);
-	if(GetToken()->type != T_CloseParen)	FatalM("Missing close parenthesis in function call!", Line);
+	if(GetTransientToken()->type != T_CloseParen)	FatalM("Missing close parenthesis in function call!", Line);
 	PrimordialType type = P_Undefined;
 	SymEntry* cType = NULL;
 	if(func == NULL){
@@ -216,17 +216,17 @@ ASTNode* ParseBase(){
 			ASTNode* expr = ParseExpression();
 			Token* tok = PeekToken();
 			if(tok->type == T_CloseParen){
-				GetToken();
+				SkipToken();
 				return expr;
 			}
 			ASTNodeList* list = MakeASTNodeList();
 				AddNodeToASTList(list, expr);
 			while(PeekToken()->type == T_Comma){
-				GetToken();
+				SkipToken();
 				expr = ParseExpression();
 				AddNodeToASTList(list, expr);
 			}
-			if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis!", Line);
+			if(GetTransientToken()->type != T_CloseParen)	FatalM("Expected close parenthesis!", Line);
 			ASTNode* node = MakeASTList(A_ExpressionList, list, FlexNULL());
 			node->type = expr->type;
 			return node;
@@ -247,9 +247,9 @@ ASTNode* ParseBase(){
 }
 
 ASTNode* ParseArraySubscript(ASTNode* node){
-	GetToken();
+	SkipToken();
 	ASTNode* expr = ParseExpression();
-	if(GetToken()->type != T_CloseBracket)	FatalM("Expected close bracket in array access!", Line);
+	if(GetTransientToken()->type != T_CloseBracket)	FatalM("Expected close bracket in array access!", Line);
 	ASTNode* scale = MakeASTBinary(A_Multiply, expr->type, expr, MakeASTLeaf(A_LitInt, P_Int, FlexInt(GetPrimSize(node->type - 1))), FlexNULL());
 	ASTNode* add = MakeASTBinary(A_Add, node->type - 1, node, scale, FlexNULL());
 	ASTNode* deref = MakeASTUnary(A_Dereference, add, FlexNULL(), node->cType);
@@ -257,8 +257,8 @@ ASTNode* ParseArraySubscript(ASTNode* node){
 }
 
 ASTNode* ParseValueAccessor(ASTNode* node){
-	GetToken();
-	Token* idTok = GetToken();
+	SkipToken();
+	Token* idTok = GetTransientToken();
 	if(idTok->type != T_Identifier)	FatalM("Expected member name!", Line);
 	SymEntry* member = GetMember(node->cType, idTok->value.strVal);
 	ASTNode* offset = MakeASTLeaf(A_LitInt, P_Int, FlexInt(member->value.intVal));
@@ -268,8 +268,8 @@ ASTNode* ParseValueAccessor(ASTNode* node){
 }
 
 ASTNode* ParsePointerAccessor(ASTNode* node){
-	GetToken();
-	Token* idTok = GetToken();
+	SkipToken();
+	Token* idTok = GetTransientToken();
 	if(idTok->type != T_Identifier)	FatalM("Expected member name!", Line);
 	SymEntry* member = GetMember(node->cType, idTok->value.strVal);
 	ASTNode* offset = MakeASTLeaf(A_LitInt, P_Int, FlexInt(member->value.intVal));
@@ -283,7 +283,7 @@ ASTNode* ParsePost(ASTNode* node){
 		case T_PlusPlus:{
 			if(!node->lvalue)				FatalM("The increment postfix operator may only be preceded by an lvalue!", Line);
 			if(node->type == P_Composite)	FatalM("The increment postfix operator may not be used on composite types!", Line);
-			GetToken();
+			SkipToken();
 			int size = 0;
 			ASTNode* rhs = NULL;
 			if(node->type & 0xF){
@@ -295,7 +295,7 @@ ASTNode* ParsePost(ASTNode* node){
 		case T_MinusMinus:{
 			if(!node->lvalue)				FatalM("The decrement postfix operator may only be preceded by an lvalue!", Line);
 			if(node->type == P_Composite)	FatalM("The decrement postfix operator may not be used on composite types!", Line);
-			GetToken();
+			SkipToken();
 			int size = 0;
 			ASTNode* rhs = NULL;
 			if(node->type & 0xF){
@@ -340,7 +340,7 @@ ASTNode* ParseFactor(){
 	Token* tok = PeekToken();
 	switch(tok->type){
 		case T_Minus:{
-			GetToken();
+			SkipToken();
 			ASTNode* Factor = ParseFactor();
 			if(FOLD_INLINE && Factor->op == A_LitInt){
 				int val = -Factor->value.intVal;
@@ -350,7 +350,7 @@ ASTNode* ParseFactor(){
 			return MakeASTUnary(A_Negate, Factor,	FlexNULL(), NULL);
 		}
 		case T_Bang:{
-			GetToken();
+			SkipToken();
 			ASTNode* factor = ParseFactor();
 			if(FOLD_INLINE){
 				switch(factor->op){
@@ -364,10 +364,10 @@ ASTNode* ParseFactor(){
 			}
 			return MakeASTUnary(A_LogicalNot, factor, FlexNULL(), NULL);
 		}
-		case T_Tilde:		GetToken(); return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	FlexNULL(), NULL);
+		case T_Tilde:		SkipToken(); return MakeASTUnary(A_BitwiseComplement,	ParseFactor(),	FlexNULL(), NULL);
 		case T_Semicolon:	return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
 		case T_PlusPlus:{
-			GetToken();
+			SkipToken();
 			ASTNode* node = ParseFactor();
 			if(!node->lvalue)				FatalM("The increment prefix operator '++' may only be used before an lvalue!", Line);
 			if(node->type == P_Composite)	FatalM("Composite increments not supported!", Line);
@@ -380,7 +380,7 @@ ASTNode* ParseFactor(){
 			return MakeASTNodeEx(A_Increment, node->type, node, NULL, rhs, FlexInt(1), FlexInt(size), NULL);
 		}
 		case T_MinusMinus:{
-			GetToken();
+			SkipToken();
 			ASTNode* node = ParseFactor();
 			if(!node->lvalue)				FatalM("The decrement prefix operator '--' may only be used before an lvalue!", Line);
 			if(node->type == P_Composite)	FatalM("Composite decrements not supported!", Line);
@@ -393,7 +393,7 @@ ASTNode* ParseFactor(){
 			return MakeASTNodeEx(A_Decrement, node->type, node, NULL, rhs, FlexInt(1), FlexInt(size), NULL);
 		}
 		case T_Ampersand:{
-			GetToken();
+			SkipToken();
 			ASTNode* fctr = ParseFactor();
 			if(!fctr->lvalue)		FatalM("The Address operator may only be used on variable references!", Line);
 			PrimordialType t = fctr->type;
@@ -402,7 +402,7 @@ ASTNode* ParseFactor(){
 			return MakeASTNode(A_AddressOf,		fctr->type + 1,	fctr,	NULL,	NULL,	FlexNULL(), fctr->cType);
 		}
 		case T_Asterisk:{
-			GetToken();
+			SkipToken();
 			ASTNode* fctr = ParseFactor();
 			PrimordialType t = fctr->type;
 			if(t == P_Undefined)		FatalM("Expression type not determined!", Line);
@@ -410,24 +410,24 @@ ASTNode* ParseFactor(){
 			return MakeASTNode(A_Dereference,	fctr->type - 1,	fctr,	NULL,	NULL,	FlexNULL(), fctr->cType);
 		}
 		case T_Sizeof:{
-			GetToken();
+			SkipToken();
 			bool withParen = PeekToken()->type == T_OpenParen;
 			PrimordialType type = P_Undefined;
 			if(withParen){
-				GetToken();
+				SkipToken();
 				type = PeekType();
 			}
 			// if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis after 'sizeof'!", Line);
 			// PrimordialType type = PeekType();
 			if(type == P_Undefined){
 				ASTNode* expr = ParseExpression();
-				if(withParen && GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis after 'sizeof'!", Line);
+				if(withParen && GetTransientToken()->type != T_CloseParen)	FatalM("Expected close parenthesis after 'sizeof'!", Line);
 				return MakeASTLeaf(A_LitInt, P_Char, FlexInt(GetTypeSize(expr->type, expr->cType)));
 			}
 			type = ParseType(NULL);
 			if(type == P_Undefined)					FatalM("Expected typename!", Line);
 			SymEntry* cType = (type == P_Composite) ? ParseCompRef(&type) : NULL;
-			if(withParen && GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis after 'sizeof'!", Line);
+			if(withParen && GetTransientToken()->type != T_CloseParen)	FatalM("Expected close parenthesis after 'sizeof'!", Line);
 			return MakeASTLeaf(A_LitInt, P_Char, FlexInt(GetTypeSize(type, cType)));
 		}
 		case T_OpenParen:{
@@ -435,12 +435,12 @@ ASTNode* ParseFactor(){
 			fgetpos(fptr, fpos);
 			int ln = Line;
 			const char* file = curFile;
-			GetToken();
+			SkipToken();
 			PrimordialType type = ParseType(NULL);
 			bool failed = type == P_Undefined;
 			while(!failed){
 				SymEntry* cType = (type == P_Composite) ? ParseCompRef(&type) : NULL;
-				if(GetToken()->type != T_CloseParen) {	failed = true;	break; }
+				if(GetTransientToken()->type != T_CloseParen) {	failed = true;	break; }
 				ASTNode* expr = ParseFactor();
 				if(expr == NULL)		FatalM("Got NULL instead of expression! (Internal @ parse.h)", __LINE__);
 				// Still need to handle narrowing manually... :'(
@@ -475,7 +475,7 @@ ASTNode* ParseTerm(){
 	ASTNode* lhs = ParseFactor();
 	Token* tok = PeekToken();
 	while(tok->type == T_Asterisk || tok->type == T_Divide || tok->type == T_Percent){
-		GetToken();
+		SkipToken();
 		ASTNode* rhs = ParseFactor();
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
@@ -546,7 +546,7 @@ ASTNode* ParseAdditiveExpression(){
 	ASTNode* lhs = ParseTerm();
 	Token* tok = PeekToken();
 	while(tok->type == T_Plus || tok->type == T_Minus){
-		GetToken();
+		SkipToken();
 		ASTNode* rhs = ParseTerm();
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
@@ -601,7 +601,7 @@ ASTNode* ParseBitShiftExpression(){
 	ASTNode* lhs = ParseAdditiveExpression();
 	Token* tok = PeekToken();
 	while(tok->type == T_DoubleLess || tok->type == T_DoubleGreater){
-		GetToken();
+		SkipToken();
 		ASTNode* rhs = ParseAdditiveExpression();
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
@@ -619,7 +619,7 @@ ASTNode* ParseRelationalExpression(){
 	ASTNode* lhs = ParseBitShiftExpression();
 	Token* tok = PeekToken();
 	while(tok->type == T_Less || tok->type == T_Greater || tok->type == T_LessEqual || tok->type == T_GreaterEqual){
-		GetToken();
+		SkipToken();
 		ASTNode* rhs = ParseBitShiftExpression();
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
@@ -639,7 +639,7 @@ ASTNode* ParseEqualityExpression(){
 	ASTNode* lhs = ParseRelationalExpression();
 	Token* tok = PeekToken();
 	while(tok->type == T_DoubleEqual || tok->type == T_BangEqual){
-		GetToken();
+		SkipToken();
 		ASTNode* rhs = ParseRelationalExpression();
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
@@ -656,7 +656,7 @@ ASTNode* ParseEqualityExpression(){
 ASTNode* ParseRepeatingEqualityExpression(){
 	ASTNode* lhs = ParseEqualityExpression();
 	while(PeekToken()->type == T_EqualDoublePipe){
-		GetToken();
+		SkipToken();
 		ASTNode* rhs = ParseEqualityExpression();
 		if(rhs->op != A_ExpressionList)
 			FatalM("The Repeating Short-Circuiting Logical OR Operator currently only supports an expression list as a right hand operand.", Line);
@@ -672,7 +672,7 @@ ASTNode* ParseBitwiseAndExpression(){
 	ASTNode* lhs = ParseRepeatingEqualityExpression();
 	Token* tok = PeekToken();
 	while(tok->type == T_Ampersand){
-		GetToken();
+		SkipToken();
 		ASTNode* rhs = ParseRepeatingEqualityExpression();
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
@@ -687,7 +687,7 @@ ASTNode* ParseBitwiseXorExpression(){
 	ASTNode* lhs = ParseBitwiseAndExpression();
 	Token* tok = PeekToken();
 	while(tok->type == T_Caret){
-		GetToken();
+		SkipToken();
 		ASTNode* rhs = ParseBitwiseAndExpression();
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
@@ -702,7 +702,7 @@ ASTNode* ParseBitwiseOrExpression(){
 	ASTNode* lhs = ParseBitwiseXorExpression();
 	Token* tok = PeekToken();
 	while(tok->type == T_Pipe){
-		GetToken();
+		SkipToken();
 		ASTNode* rhs = ParseBitwiseXorExpression();
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
@@ -717,7 +717,7 @@ ASTNode* ParseLogicalAndExpression(){
 	ASTNode* lhs = ParseBitwiseOrExpression();
 	Token* tok = PeekToken();
 	while(tok->type == T_DoubleAmpersand){
-		GetToken();
+		SkipToken();
 		ASTNode* rhs = ParseBitwiseOrExpression();
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
@@ -732,7 +732,7 @@ ASTNode* ParseLogicalOrExpression(){
 	ASTNode* lhs = ParseLogicalAndExpression();
 	Token* tok = PeekToken();
 	while(tok->type == T_DoublePipe){
-		GetToken();
+		SkipToken();
 		ASTNode* rhs = ParseLogicalAndExpression();
 		PrimordialType type = NodeWidestType(lhs, rhs);
 		if(type == P_Undefined)
@@ -746,9 +746,9 @@ ASTNode* ParseLogicalOrExpression(){
 ASTNode* ParseConditionalExpression(){
 	ASTNode* condition = ParseLogicalOrExpression();
 	if(PeekToken()->type != T_Question)		return condition;
-	GetToken();
+	SkipToken();
 	ASTNode* then = PeekToken()->type == T_Colon ? NULL : ParseExpression();
-	if(GetToken()->type != T_Colon)			FatalM("Expected colon ':' in conditional expression!", Line);
+	if(GetTransientToken()->type != T_Colon)			FatalM("Expected colon ':' in conditional expression!", Line);
 	ASTNode* otherwise = ParseConditionalExpression();
 	PrimordialType type = GetWidestType((then != NULL ? then->type : condition->type), otherwise->type);
 	if(type == P_Undefined)					FatalM("Types of expression members are incompatible!", Line);
@@ -774,7 +774,7 @@ ASTNode* ParseAssignmentExpression(){
 		case T_PipeEqual:			nt = A_AssignBitwiseOr;		break;
 		default:					return lhs;
 	}
-	GetToken();
+	SkipToken();
 	ASTNode* rhs = ParseExpression();
 	if(lhs == NULL)							FatalM("Expected expression!", Line);
 	PrimordialType type;
@@ -796,9 +796,9 @@ ASTNode* ParseExpression(){
 }
 
 ASTNode* ParseReturnStatement(){
-	if(GetToken()->type != T_Return)		FatalM("Invalid statement; Expected return.", Line);
+	if(GetTransientToken()->type != T_Return)		FatalM("Invalid statement; Expected return.", Line);
 	ASTNode* expr = ParseExpression();
-	if(GetToken()->type != T_Semicolon)		FatalM("Invalid statement; Expected semicolon.", Line);
+	if(GetTransientToken()->type != T_Semicolon)		FatalM("Invalid statement; Expected semicolon.", Line);
 	return MakeASTUnary(A_Return, expr, FlexNULL(), expr->cType);
 }
 
@@ -813,7 +813,7 @@ ASTNode* ParseDeclaration(){
 		if(cType == NULL && (type & 0xF0) == P_Composite)
 			FatalM("Undefined composite!", Line);
 	}
-	Token* tok = GetToken();
+	Token* tok = GetTransientToken();
 	if(tok->type != T_Identifier)	FatalM("Expected identifier!", Line);
 	const char* id = tok->value.strVal;
 	InsertVar(id, NULL, type, cType, sc, scope);
@@ -822,7 +822,7 @@ ASTNode* ParseDeclaration(){
 		n->sClass = sc;
 		return n;
 	}
-	GetToken();
+	SkipToken();
 	ASTNode* expr = ParseExpression();
 	int typeCompat = CheckTypeCompatibility(type, expr->type);
 	switch(typeCompat){
@@ -846,23 +846,23 @@ ASTNode* ParseDeclaration(){
 }
 
 ASTNode* ParseIfStatement(){
-	if(GetToken()->type != T_If)			FatalM("Expected 'if' to begin if statement!", Line);
-	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in if statement!", Line);
+	if(GetTransientToken()->type != T_If)			FatalM("Expected 'if' to begin if statement!", Line);
+	if(GetTransientToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in if statement!", Line);
 	ASTNode* condition = ParseExpression();
-	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in if statement!", Line);
+	if(GetTransientToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in if statement!", Line);
 	ASTNode* then = ParseStatement();
 	if(PeekToken()->type != T_Else)
 		return MakeASTBinary(A_If, P_Undefined, condition, then, FlexNULL());
-	GetToken();
+	SkipToken();
 	ASTNode* otherwise = ParseStatement();
 	return MakeASTNode(A_If, P_Undefined, condition, otherwise, then, FlexNULL(), NULL);
 }
 
 ASTNode* ParseWhileLoop(){
-	if(GetToken()->type != T_While)			FatalM("Expected 'while' to begin while loop!", Line);
-	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in while loop!", Line);
+	if(GetTransientToken()->type != T_While)			FatalM("Expected 'while' to begin while loop!", Line);
+	if(GetTransientToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in while loop!", Line);
 	ASTNode* condition = ParseExpression();
-	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in while loop!", Line);
+	if(GetTransientToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in while loop!", Line);
 	loopDepth++;
 	ASTNode* stmt = ParseStatement();
 	loopDepth--;
@@ -870,21 +870,21 @@ ASTNode* ParseWhileLoop(){
 }
 
 ASTNode* ParseDoLoop(){
-	if(GetToken()->type != T_Do)			FatalM("Expected 'do' to begin do-while loop!", Line);
+	if(GetTransientToken()->type != T_Do)			FatalM("Expected 'do' to begin do-while loop!", Line);
 	loopDepth++;
 	ASTNode* stmt = ParseStatement();
 	loopDepth--;
-	if(GetToken()->type != T_While)			FatalM("Expected 'while' clause in do-while loop!", Line);
-	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in do-while loop!", Line);
+	if(GetTransientToken()->type != T_While)			FatalM("Expected 'while' clause in do-while loop!", Line);
+	if(GetTransientToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in do-while loop!", Line);
 	ASTNode* condition = ParseExpression();
-	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in do-while loop!", Line);
+	if(GetTransientToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in do-while loop!", Line);
 	return MakeASTBinary(A_Do, P_Undefined, condition, stmt, FlexNULL());
 }
 
 ASTNode* ParseForLoop(){
-	if(GetToken()->type != T_For)			FatalM("Expected 'for' to begin for loop!", Line);
+	if(GetTransientToken()->type != T_For)			FatalM("Expected 'for' to begin for loop!", Line);
 	EnterScope();
-	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in for loop!", Line);
+	if(GetTransientToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in for loop!", Line);
 	ASTNode* initializer = NULL;
 	if(PeekType() != P_Undefined)
 		initializer = ParseDeclaration();
@@ -892,11 +892,11 @@ ASTNode* ParseForLoop(){
 		case T_Semicolon:	break;
 		default:			initializer = ParseExpression();	break;
 	}
-	if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon in for loop!", Line);
+	if(GetTransientToken()->type != T_Semicolon)	FatalM("Expected semicolon in for loop!", Line);
 	ASTNode* condition	= PeekToken()->type == T_Semicolon ? NULL : ParseExpression();
-	if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon in for loop!", Line);
+	if(GetTransientToken()->type != T_Semicolon)	FatalM("Expected semicolon in for loop!", Line);
 	ASTNode* modifier	= PeekToken()->type == T_CloseParen ? NULL : ParseExpression();
-	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in for loop!", Line);
+	if(GetTransientToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in for loop!", Line);
 	loopDepth++;
 	ASTNode* stmt = ParseStatement();
 	loopDepth--;
@@ -906,22 +906,22 @@ ASTNode* ParseForLoop(){
 }
 
 ASTNode* ParseSwitch(){
-	if(GetToken()->type != T_Switch)		FatalM("Expected 'switch' keyword to begin switch statement!", Line);
-	if(GetToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in switch statement!", Line);
+	if(GetTransientToken()->type != T_Switch)		FatalM("Expected 'switch' keyword to begin switch statement!", Line);
+	if(GetTransientToken()->type != T_OpenParen)		FatalM("Expected open parenthesis '(' in switch statement!", Line);
 	ASTNode* expr = ParseExpression();
 	int typeCompat = CheckTypeCompatibility(expr->type, P_Int);
 	if(typeCompat == TYPES_INCOMPATIBLE || typeCompat == TYPES_WIDEN_RHS)
 		FatalM("Incompatible expression type in switch statement! Expression must be of integral type!", Line);
 	if(expr == NULL)						FatalM("Expected expression in switch statement!", Line);
-	if(GetToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in switch statement!", Line);
-	if(GetToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' to denote body of switch statement!", Line);
+	if(GetTransientToken()->type != T_CloseParen)	FatalM("Expected close parenthesis ')' in switch statement!", Line);
+	if(GetTransientToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' to denote body of switch statement!", Line);
 	ASTNodeList* cases = MakeASTNodeList();
 	switchDepth++;
 	bool seenDefault = false;
 	while(PeekToken()->type != T_CloseBrace){
 		int* caseValue = NULL;
 		int op = A_Undefined;
-		switch(GetToken()->type){
+		switch(GetTransientToken()->type){
 			case T_Case:{
 				ASTNode* caseValExpr = ParseExpression();
 				if(caseValExpr->op != A_LitInt)				FatalM("Case condition must be a literal integer!", Line);
@@ -943,7 +943,7 @@ ASTNode* ParseSwitch(){
 			}
 			default:						FatalM("Expected either 'case' or 'default' in switch statement!", Line);
 		}
-		if(GetToken()->type != T_Colon)		FatalM("Expected colon ':' following case!", Line);
+		if(GetTransientToken()->type != T_Colon)		FatalM("Expected colon ':' following case!", Line);
 		Token* tok = PeekToken();
 		ASTNodeList* caseActions = MakeASTNodeList();
 		while(tok->type != T_Case && tok->type != T_Default && tok->type != T_CloseBrace){
@@ -957,7 +957,7 @@ ASTNode* ParseSwitch(){
 			free(caseValue);
 	}
 	switchDepth--;
-	if(GetToken()->type != T_CloseBrace)	FatalM("Expected close brace '}' after switch statement!", Line);
+	if(GetTransientToken()->type != T_CloseBrace)	FatalM("Expected close brace '}' after switch statement!", Line);
 	if(cases->count == 0){
 		WarnM("No cases provided to switch!", Line);
 		return expr;
@@ -978,27 +978,27 @@ ASTNode* ParseStatement(){
 		case T_Do:			return ParseDoLoop();
 		case T_Continue:
 			if(!loopDepth)					FatalM("A 'continue' statement may only be used inside of a loop!", Line);
-			GetToken();
+			SkipToken();
 			return MakeASTLeaf(A_Continue, P_Undefined, FlexNULL());
 		case T_Break:
 			if(!loopDepth && !switchDepth)	FatalM("A 'break' statement may only be used inside of a switch or loop!", Line);
-			GetToken();
+			SkipToken();
 			return MakeASTLeaf(A_Break, P_Undefined, FlexNULL());
 		case T_Switch:		return ParseSwitch();
 		default:			break;
 	}
 	ASTNode* expr = (PeekType() == P_Undefined) ? ParseExpression() : ParseDeclaration();
-	if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon!", Line);
+	if(GetTransientToken()->type != T_Semicolon)		FatalM("Expected semicolon!", Line);
 	return expr;
 }
 
 ASTNode* ParseBlock(){
-	if(GetToken()->type != T_OpenBrace)		FatalM("Invalid block declaration; Expected open brace '{'.", Line);
+	if(GetTransientToken()->type != T_OpenBrace)		FatalM("Invalid block declaration; Expected open brace '{'.", Line);
 	EnterScope();
 	ASTNodeList* list = MakeASTNodeList();
 	while(PeekToken()->type != T_CloseBrace)
 		AddNodeToASTList(list, ParseStatement());
-	if(GetToken()->type != T_CloseBrace)	FatalM("Invalid block declaration; Expected close brace '}'.", Line);
+	if(GetTransientToken()->type != T_CloseBrace)	FatalM("Invalid block declaration; Expected close brace '}'.", Line);
 	ExitScope();
 	return MakeASTList(A_Block, list, FlexNULL());
 }
@@ -1013,17 +1013,17 @@ ASTNode* ParseFunction(){
 		if(cType == NULL && (type & 0xF0) == P_Composite)
 			FatalM("Undefined composite!", Line);
 	}
-	Token* tok = GetToken();
+	Token* tok = GetTransientToken();
 	if(tok->type != T_Identifier)			FatalM("Invalid function declaration; Expected identifier.", Line);
 	char* idStr = _strdup(tok->value.strVal);
 	if(strbeg(idStr, "__SCC_BUILTIN__"))	WarnM("Using reserved name in function declaration!", Line);
-	if(GetToken()->type != T_OpenParen)		FatalM("Invalid function declaration; Expected open parenthesis '('.", Line);
+	if(GetTransientToken()->type != T_OpenParen)		FatalM("Invalid function declaration; Expected open parenthesis '('.", Line);
 	Parameter* params = NULL;
 	while(PeekToken()->type != T_CloseParen){
 		if(PeekToken()->type == T_Comma)
-			GetToken();
+			SkipToken();
 		if(PeekToken()->type == T_Ellipsis){
-			GetToken();
+			SkipToken();
 			if(PeekToken()->type != T_CloseParen)	FatalM("Varaidic parameters must be the last parameter in a function prototype!", Line);
 			params = MakeParam("...", P_Void, NULL, params);
 			break;
@@ -1051,10 +1051,10 @@ ASTNode* ParseFunction(){
 	if(params != NULL)
 		while (params->prev != NULL)
 			params = params->prev;
-	if(GetToken()->type != T_CloseParen)	FatalM("Invalid function declaration; Expected close parenthesis ')'.", Line);
+	if(GetTransientToken()->type != T_CloseParen)	FatalM("Invalid function declaration; Expected close parenthesis ')'.", Line);
 	InsertFunc(idStr, FlexPtr(params), type, cType);
 	if(PeekToken()->type == T_Semicolon){
-		GetToken();
+		SkipToken();
 		ASTNode* n = MakeASTNodeEx(A_Function, type, NULL, NULL, NULL, FlexStr(idStr), FlexPtr(params), cType);
 		n->sClass = sc;
 		return n;
@@ -1078,22 +1078,22 @@ ASTNode* ParseFunction(){
 ASTNode* ParseEnumDeclaration(){
 	const char* identifier = NULL;
 	if(PeekToken()->type == T_Identifier){
-		identifier = GetToken()->value.strVal;
+		identifier = GetTransientToken()->value.strVal;
 		InsertEnumName(identifier);
 	}
 	if(PeekToken()->type == T_Semicolon){
 		// incomplete type -- Never hit due to lookahead behaviour in ParseNode()
 		FatalM("Incomplete enum declarations not yet supported!", Line);
 	}
-	if(GetToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' in enum declaration!", Line);
+	if(GetTransientToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' in enum declaration!", Line);
 	ASTNodeList* values = MakeASTNodeList();
 	int lastValue = -1;
 	while(PeekToken()->type == T_Identifier){
 		PrimordialType type = P_Undefined;
 		int value = lastValue + 1;
-		const char* id = GetToken()->value.strVal;
+		const char* id = GetTransientToken()->value.strVal;
 		if(PeekToken()->type == T_Equal){
-			GetToken();
+			SkipToken();
 			ASTNode* expr = ParseExpression();
 			// TODO: Fold constant expressions
 			if(expr->op != A_LitInt)	FatalM("Only integer and character literals are supported at this time! (Internal @ parse.h)", __LINE__);
@@ -1104,50 +1104,50 @@ ASTNode* ParseEnumDeclaration(){
 		AddNodeToASTList(values, MakeASTNodeEx(A_EnumValue, type, NULL, NULL, NULL, FlexStr(id), FlexInt(value), NULL));
 		lastValue = value;
 		if(PeekToken()->type == T_Comma)
-			GetToken();
+			SkipToken();
 	}
-	if (GetToken()->type != T_CloseBrace)
+	if (GetTransientToken()->type != T_CloseBrace)
 		FatalM("Expected close brace after Enum declaration!", Line);
-	if(GetToken()->type != T_Semicolon)
+	if(GetTransientToken()->type != T_Semicolon)
 		FatalM("Expected semicolon after Enum declaration!", Line);
 	// Add enum values to symtable
 	return MakeASTList(A_EnumDecl, values, FlexStr(identifier));
 }
 
 ASTNode* ParseCompositeDeclaration(){
-	Token* cTok = GetToken();
-	if(cTok->type == T_Enum)	return ParseEnumDeclaration();
-	if(cTok->type != T_Struct && cTok->type != T_Union)
+	TokenType cTokType = GetTransientToken()->type;
+	if(cTokType == T_Enum)	return ParseEnumDeclaration();
+	if(cTokType != T_Struct && cTokType != T_Union)
 		FatalM("Expected composite type!", Line);
 	Token* tok = PeekToken();
 	// if(tok->type != T_Identifier)			FatalM("Anonymous composites not yet implemented!", Line);
 	const char* identifier = NULL;
 	if(tok->type == T_Identifier){
 		identifier = tok->value.strVal;
-		GetToken();
+		SkipToken();
 	}
-	SymList* incomplete = cTok->type == T_Struct
+	SymList* incomplete = cTokType == T_Struct
 		? InsertStruct(identifier,	NULL)
 		: InsertUnion(identifier,	NULL);
 	if(PeekToken()->type == T_Semicolon){
 		// incomplete type -- Never hit due to lookahead behaviour in ParseNode()
 		FatalM("Incomplete composite declarations not yet supported!", Line);
 	}
-	if(GetToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' in composite declaration!", Line);
+	if(GetTransientToken()->type != T_OpenBrace)		FatalM("Expected open brace '{' in composite declaration!", Line);
 	ASTNodeList* memberNodes = MakeASTNodeList();
 	while(PeekToken()->type != T_CloseBrace){
 		ASTNode* decl = ParseDeclaration();
 		if(decl->lhs != NULL)				FatalM("Composite member initializers not yet supported!", Line);
 		AddNodeToASTList(memberNodes, decl);
-		if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon following composite member declaration!", Line);
+		if(GetTransientToken()->type != T_Semicolon)	FatalM("Expected semicolon following composite member declaration!", Line);
 	}
-	if(GetToken()->type != T_CloseBrace)	FatalM("Expected close brace '}' in composite declaration!", Line);
-	SymList* list = cTok->type == T_Struct
+	if(GetTransientToken()->type != T_CloseBrace)		FatalM("Expected close brace '}' in composite declaration!", Line);
+	SymList* list = cTokType == T_Struct
 		? UpdateStruct(incomplete,	identifier,	MakeCompMembers(memberNodes))
 		: UpdateUnion(incomplete,	identifier,	MakeCompMembers(memberNodes));
 	if(list == NULL)						FatalM("Failed to create composite definition! (In parse.h)", __LINE__);
 	if(PeekToken()->type != T_Identifier){
-		if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon after composite declaration!", Line);
+		if(GetTransientToken()->type != T_Semicolon)	FatalM("Expected semicolon after composite declaration!", Line);
 		return MakeASTList(A_StructDecl, memberNodes, FlexStr(identifier));
 	}
 	if(identifier != NULL){
@@ -1156,18 +1156,18 @@ ASTNode* ParseCompositeDeclaration(){
 		if(!streq(list->item->key, identifier))	FatalM("Failed to find composite definition after creation! (In parse.h)", __LINE__);
 	}
 	SymEntry* entry = list->item;
-	FlexibleValue declName = GetToken()->value;
+	FlexibleValue declName = GetTransientToken()->value;
 	ASTNode* varDecl = MakeASTLeaf(A_Declare, P_Composite, declName);
 	varDecl->cType = entry;
 	InsertVar(declName.strVal, NULL, P_Composite, entry, C_Default, scope);
-	if(GetToken()->type != T_Semicolon)		FatalM("Expected semicolon after struct declaratioin!", Line);
+	if(GetTransientToken()->type != T_Semicolon)		FatalM("Expected semicolon after struct declaratioin!", Line);
 	ASTNode* ret = MakeASTList(A_StructDecl, memberNodes, FlexStr(identifier));
 	ret->lhs = varDecl;
 	return ret;
 }
 
 ASTNode* ParseTypedef(){
-	if(GetToken()->type != T_Typedef)	FatalM("Expected 'typedef' keyword to begin typedef!", Line);
+	if(GetTransientToken()->type != T_Typedef)	FatalM("Expected 'typedef' keyword to begin typedef!", Line);
 	Token* advCTok = PeekToken();
 	Token* advITok = PeekTokenN(1);
 	PrimordialType type = ParseType(NULL);
@@ -1192,15 +1192,15 @@ ASTNode* ParseTypedef(){
 	}
 	free(advCTok);
 	free(advITok);
-	Token* tok = GetToken();
+	Token* tok = GetTransientToken();
 	if (tok->type != T_Identifier){
 		if (tok->type != T_Semicolon)	FatalM("Expected semicolon after typedef!", Line);
 		if(!advDecl)					FatalM("Anonymous typedefs not yet supported!", Line);
 		return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
 	}
 	const char* id = tok->value.strVal;
-	if(GetToken()->type != T_Semicolon)	FatalM("Expected semicolon after typedef!", Line);
-	if(NULL == InsertTypedef(id, type, cType))	FatalM("Failed to create typedef SymEntry!", Line);
+	if(GetTransientToken()->type != T_Semicolon)	FatalM("Expected semicolon after typedef!", Line);
+	if(NULL == InsertTypedef(id, type, cType))		FatalM("Failed to create typedef SymEntry!", Line);
 	return MakeASTLeaf(A_Undefined, P_Undefined, FlexNULL());
 }
 
@@ -1215,7 +1215,7 @@ ASTNode* ParseNode(){
 		case T_Equal:
 		case T_Semicolon:{
 			ASTNode* decl = ParseDeclaration();
-			if(GetToken()->type != T_Semicolon)
+			if(GetTransientToken()->type != T_Semicolon)
 				FatalM("Expected semicolon after declaration!", Line);
 			return decl;
 		}

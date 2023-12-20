@@ -123,7 +123,7 @@ int main(int argc, char** argv){
 		ASTNodeList* ast = MakeASTNodeList();
 		while(PeekToken() != NULL)
 			AddNodeToASTList(ast, ParseNode());
-		if(GetToken() != NULL)	FatalM("Expected EOF!", Line);
+		if(GetTransientToken() != NULL)	FatalM("Expected EOF!", Line);
 		fclose(fptr);
 		unlink(target);
 		free(target);

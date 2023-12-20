@@ -7,6 +7,9 @@
 
 Token* PeekToken();
 Token* GetToken();
+Token* GetTransientToken();
+
+Token* transientToken = NULL;
 
 static Token* Tokenize(const char* str){
 	Token* token = malloc(sizeof(Token));
@@ -166,10 +169,10 @@ char* ShiftToken(){
 		if(c == EOF)
 			break;
 		if(!charLit && !strLit && c == '#'){
-			Token* tok = GetToken();
+			Token* tok = GetTransientToken();
 			if(tok->type != T_LitInt)	FatalM("Expected pre-processor line number!", Line);
 			int l = tok->value.intVal;
-			tok = GetToken();
+			tok = GetTransientToken();
 			if(tok->type != T_LitStr)	FatalM("Expected pre-processor file name!", Line);
 			if(tok->value.strVal[0] != '<'){	// is filename
 				if(!streq(tok->value.strVal, curFile))
@@ -352,6 +355,18 @@ Token* PeekTokenN(int n){
 Token* GetToken(){
 	char* str = ShiftToken();
 	return str ? Tokenize(str) : NULL;
+}
+
+Token* GetTransientToken(){
+	if(transientToken){
+		free(transientToken);
+		transientToken = NULL;
+	}
+	return transientToken = GetToken();
+}
+
+void SkipToken(){
+	free(ShiftToken());
 }
 
 
