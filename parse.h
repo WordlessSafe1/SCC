@@ -1116,6 +1116,20 @@ ASTNode* ParseEnumDeclaration(){
 
 ASTNode* ParseCompositeDeclaration(){
 	TokenType cTokType = GetTransientToken()->type;
+	StorageClass sc = C_Default;
+	switch(cTokType){
+		case T_Enum:
+		case T_Struct:
+		case T_Union:	break;
+		case T_Static:	FatalM("Static composite declarations not yet supported!", Line);
+		case T_Extern:
+			sc = cTokType == T_Extern ? C_Extern : C_Static;
+			cTokType = GetTransientToken()->type;
+			if(cTokType != T_Struct && cTokType != T_Union)
+				FatalM("Expected composite type!", Line);
+			break;
+		default:		FatalM("Expected composite type!", Line);
+	}
 	if(cTokType == T_Enum)	return ParseEnumDeclaration();
 	if(cTokType != T_Struct && cTokType != T_Union)
 		FatalM("Expected composite type!", Line);
@@ -1147,6 +1161,7 @@ ASTNode* ParseCompositeDeclaration(){
 		: UpdateUnion(incomplete,	identifier,	MakeCompMembers(memberNodes));
 	if(list == NULL)						FatalM("Failed to create composite definition! (In parse.h)", __LINE__);
 	if(PeekToken()->type != T_Identifier){
+		if(sc != C_Default)								FatalM("External or static composite declarations must declare an instance!", Line);
 		if(GetTransientToken()->type != T_Semicolon)	FatalM("Expected semicolon after composite declaration!", Line);
 		return MakeASTList(A_StructDecl, memberNodes, FlexStr(identifier));
 	}
@@ -1159,6 +1174,7 @@ ASTNode* ParseCompositeDeclaration(){
 	FlexibleValue declName = GetTransientToken()->value;
 	ASTNode* varDecl = MakeASTLeaf(A_Declare, P_Composite, declName);
 	varDecl->cType = entry;
+	varDecl->sClass = sc;
 	InsertVar(declName.strVal, NULL, P_Composite, entry, C_Default, scope);
 	if(GetTransientToken()->type != T_Semicolon)		FatalM("Expected semicolon after struct declaratioin!", Line);
 	ASTNode* ret = MakeASTList(A_StructDecl, memberNodes, FlexStr(identifier));

@@ -1415,6 +1415,7 @@ char* GenerateAsm(ASTNodeList* node){
 		bss_section = _strdup("	.bss\n	.align	16\n");
 		const char* const format =
 			"%s" // bss_section
+			"	.globl	%s\n" // id - Any bss variable is global by definition
 			"%s:\n" // id
 			"	.zero	%d\n" // size
 		;
@@ -1422,8 +1423,8 @@ char* GenerateAsm(ASTNodeList* node){
 			if(streq(bss->val, ""))	continue;
 			SymEntry* var = FindVar(bss->val, 0);
 			if(var == NULL)	FatalM("Failed to find global variable! (In gen.h)", __LINE__);
-			int charCount = strlen(bss_section) + strlen(bss->val) + strlen(format) + 1;
-			char* buffer = sngenf(charCount, format, bss_section, bss->val, GetTypeSize(var->type, var->cType));
+			int charCount = strlen(bss_section) + 2*strlen(bss->val) + strlen(format) + 1;
+			char* buffer = sngenf(charCount, format, bss_section, bss->val, bss->val, GetTypeSize(var->type, var->cType));
 			free(bss_section);
 			bss_section = buffer;
 			if(bss->prev != NULL)
