@@ -9,7 +9,7 @@
 #include "globals.h"
 
 extern Token* transientToken;
-// static Token* Tokenize(const char* str);
+
 char* ShiftToken();
 Token* PeekToken();
 /// Peek the next token + n.

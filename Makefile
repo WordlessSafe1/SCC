@@ -2,8 +2,8 @@ CC = gcc
 OUT = scc.exe
 BUILDDIR = ./target
 
-$(BUILDDIR)/$(OUT): $(BUILDDIR)/main.o $(BUILDDIR)/types.o $(BUILDDIR)/symTable.o $(BUILDDIR)/lex.o $(BUILDDIR)/gen.o | $(BUILDDIR)
-	$(CC) $(CFLAGS) -o $(BUILDDIR)/$(OUT) $(BUILDDIR)/main.o $(BUILDDIR)/types.o $(BUILDDIR)/symTable.o $(BUILDDIR)/lex.o $(BUILDDIR)/gen.o
+$(BUILDDIR)/$(OUT): $(BUILDDIR)/main.o $(BUILDDIR)/types.o $(BUILDDIR)/symTable.o $(BUILDDIR)/lex.o $(BUILDDIR)/gen.o $(BUILDDIR)/parse.o | $(BUILDDIR)
+	$(CC) $(CFLAGS) -o $(BUILDDIR)/$(OUT) $(BUILDDIR)/main.o $(BUILDDIR)/types.o $(BUILDDIR)/symTable.o $(BUILDDIR)/lex.o $(BUILDDIR)/gen.o $(BUILDDIR)/parse.o
 
 $(BUILDDIR)/main.o: main.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) -c main.c -o $(BUILDDIR)/main.o
@@ -19,6 +19,9 @@ $(BUILDDIR)/lex.o: lex.c lex.h | $(BUILDDIR)
 
 $(BUILDDIR)/gen.o: gen.c gen.h | $(BUILDDIR)
 	$(CC) $(CFLAGS) -c gen.c -o $(BUILDDIR)/gen.o
+
+$(BUILDDIR)/parse.o: parse.c parse.h | $(BUILDDIR)
+	$(CC) $(CFLAGS) -c parse.c -o $(BUILDDIR)/parse.o
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
