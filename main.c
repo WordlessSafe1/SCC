@@ -108,6 +108,9 @@ int main(int argc, char** argv){
 	if(outputTarget == NULL && !dump)	outputTarget = "a.out";
 	for(int i = 0; i < inputs; i++){
 		curFile = inputTargets[i];
+		// If the file is a .o file, skip preprocessing and parsing
+		if(!strcmp(inputTargets[i] + strlen(inputTargets[i]) - 2, ".o"))
+			continue;
 		const char* format = "cpp.exe -D __SCC__ -nostdinc -isystem %s %s -o %s";
 		target = AlterFileExtension(inputTargets[i], "tmp_ppc");
 		int charCount = strlen(format) + strlen(incDir) + strlen(inputTargets[i]) + strlen(target) + 1;
@@ -202,6 +205,8 @@ int main(int argc, char** argv){
 		}
 		system(cmd);
 		for(int i = 0; i < inputs; i++){
+			if(!strcmp(inputTargets[i] + strlen(inputTargets[i]) - 2, ".o"))
+				continue;
 			char* targ = AlterFileExtension(inputTargets[i], "o");
 			unlink(targ);
 			free(targ);
