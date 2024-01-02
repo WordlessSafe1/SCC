@@ -178,6 +178,8 @@ int main(int argc, char** argv){
 		{
 			const char* format = "as -o %s %s";
 			char* outfilename = AlterFileExtension(inputTargets[i], "o");
+			if(!link && inputs == 1 && strcmp(outputTarget, "a.out")) // If -c on a single file, output should be -o, if specified
+				outfilename = _strdup(outputTarget);
 			int charCount = strlen(outfilename) + strlen(output) + strlen(format) + 1;
 			char* cmd = malloc(charCount * sizeof(char));
 			snprintf(cmd, charCount * sizeof(char), format, outfilename, output);

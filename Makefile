@@ -26,7 +26,7 @@ $(BUILDDIR):
 build: $(BUILDDIR)/$(OUT)
 
 clean:
-	rm -rf $(BUILDDIR)
+	rm -f $(BUILDDIR)/*.o
 
 # Triple test; build to scc0.exe, build to scc1.exe using scc0.exe, build to scc2.exe using scc1.exe
 triple:
@@ -34,12 +34,15 @@ triple:
 	@make clean -s
 	@echo " === Building scc0.exe... === "
 	@make build OUT=scc0.exe -s
+	@echo " === Cleaning build directory... === "
+	@rm -f $(BUILDDIR)/*.o
+	@sleep 2
 	@echo " === Building scc1.exe... === "
-	@make build OUT=scc1.exe CC="$(BUILDDIR)/scc0.exe" -s --no-print-directory
+	@make build OUT=scc1.exe CC="$(BUILDDIR)/scc0.exe" CFLAGS="-q" -s --no-print-directory
+	@echo " === Cleaning build directory... === "
+	@rm -f $(BUILDDIR)/*.o
 	@echo " === Building scc2.exe... === "
-	@make build OUT=scc2.exe CC="$(BUILDDIR)/scc1.exe" -s --no-print-directory
-	@echo " === Checking if scc0.exe is identical to scc1.exe... === "
-	cmp $(BUILDDIR)/scc0.exe $(BUILDDIR)/scc1.exe
-	@echo " === Checking if scc1.exe is identical to scc2.exe... === "
-	cmp $(BUILDDIR)/scc1.exe $(BUILDDIR)/scc2.exe
+	@make build CFLAGS= OUT=scc2.exe CC="$(BUILDDIR)/scc1.exe" CFLAGS="-q" -s --no-print-directory
+	@echo " === Checking if scc2.exe is identical to scc1.exe... === "
+	@cmp $(BUILDDIR)/scc2.exe $(BUILDDIR)/scc1.exe
 	@echo "Passed!"
